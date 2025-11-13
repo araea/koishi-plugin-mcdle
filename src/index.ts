@@ -79,20 +79,27 @@ export const usage = `# MCDLE - 我的世界猜谜游戏
 
 956758505`;
 export const inject = ["database"];
+// pz*
 export interface Config {
   atReply: boolean;
   quoteReply: boolean;
   isEnableMiddleware: boolean;
   maxRank: number;
   dailyPlayLimit: number;
+  retractDelay: number;
 }
-
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("响应时@用户"),
   quoteReply: Schema.boolean().default(true).description("响应时引用消息"),
   isEnableMiddleware: Schema.boolean().default(false).description("启用中间件（无需指令直接猜测）"),
   maxRank: Schema.number().default(10).min(0).description("排行榜最大显示人数"),
   dailyPlayLimit: Schema.number().default(1).min(1).description("每日游玩次数上限"),
+  retractDelay: Schema.number()
+    .min(0)
+    .default(0)
+    .description(
+      `撤回上一条消息的等待时间，单位是秒。值为 0 时不启用自动撤回功能。`
+    ),
 });
 // smb*
 declare module "koishi" {
@@ -162,6 +169,9 @@ export function apply(ctx: Context, cfg: Config) {
     },
   );
 
+  // cl*
+  const logger = ctx.logger("mcdle")
+
   //zjj*
   if (cfg.isEnableMiddleware) {
     ctx.middleware(async (session, next) => {
@@ -208,80 +218,63 @@ export function apply(ctx: Context, cfg: Config) {
 
   //zl*
   ctx.command("mcdle", "我的世界猜谜游戏")
-    .action(() => {
-      return [
-        "欢迎使用 MCDLE",
-        "",
-        "猜生物 物品 方块",
-        "挑战知识边界",
-        "",
-        "颜色与箭头指引方向",
-        "每日限次 排行榜更新",
-        "",
-        "指令示例：",
-        "  mcdle.猜 [名称]",
-        "  mcdle.帮助",
-        "  mcdle.排行榜",
-        "",
-        "愿你洞察世界万象"
-      ].join("\n")
-    });
+    .action(async ({ session }) => mcdle(session));
   ctx.command("mcdle.猜 [guess:string]").action(async ({ session }, guess) => c(session, guess?.trim()));
   ctx.command("mcdle.帮助").action(async ({ session }) => bz(session));
   ctx.command("mcdle.排行榜").action(async ({ session }) => phb(session));
   ctx.command("mcdle.词库").action(async ({ session }) => ck(session));
 
   // zlhs*
-  async function ck(session: Session) {
-    // 检查是否为onebot适配器且支持合并转发
-    if (session.bot?.platform === 'onebot' && session.bot?.internal?.sendForwardMsg) {
-      // 创建合并转发消息节点
-      const nodes = [
-        {
-          type: 'node',
-          data: {
-            name: 'MCDLE词库',
-            uin: session.bot.selfId,
-            content: `生物词库：\n${mobChineseTitle.join(' ')}`
-          }
-        },
-        {
-          type: 'node',
-          data: {
-            name: 'MCDLE词库',
-            uin: session.bot.selfId,
-            content: `方块词库：\n${blockChineseTitle.join(' ')}`
-          }
-        },
-        {
-          type: 'node',
-          data: {
-            name: 'MCDLE词库',
-            uin: session.bot.selfId,
-            content: `物品词库：\n${itemChineseTitle.join(' ')}`
-          }
-        }
-      ];
+  async function mcdle(session: Session) {
+    await sendMsg(session, [
+      "欢迎使用 MCDLE",
+      "",
+      "猜生物 物品 方块",
+      "挑战知识边界",
+      "",
+      "颜色与箭头指引方向",
+      "每日限次 排行榜更新",
+      "",
+      "指令示例：",
+      "  mcdle.猜 [名称]",
+      "  mcdle.帮助",
+      "  mcdle.排行榜",
+      "",
+      "愿你洞察世界万象"
+    ].join("\n"));
+  }
 
+  async function ck(session: Session) {
+    // 获取平台信息
+    const platform = session.platform;
+
+    // 创建合并转发消息节点
+    const allContentNodes = [
+      h('message', { userId: session.userId }, `生物词库：\n${mobChineseTitle.join(' ')}`),
+      h('message', { userId: session.userId }, `方块词库：\n${blockChineseTitle.join(' ')}`),
+      h('message', { userId: session.userId }, `物品词库：\n${itemChineseTitle.join(' ')}`)
+    ];
+
+    // 仅在OneBot平台尝试合并转发
+    if (['red', 'onebot'].includes(platform)) {
       try {
-        // 发送合并转发消息
-        await session.bot.internal.sendForwardMsg(session.channelId, nodes);
+        await session.send(h('figure', {}, allContentNodes));
         return;
       } catch (error) {
         // 如果合并转发失败，降级为普通消息发送
-        console.warn('合并转发失败，降级为普通消息:', error);
+        logger.warn('合并转发失败，降级为普通消息:', error);
       }
     }
 
-    // 非onebot适配器或合并转发失败时使用普通消息发送
-    // 发送生物词库
-    await sendMsg(session, `生物词库：\n${mobChineseTitle.join(' ')}`);
+    // 非onebot/qq适配器或合并转发失败时使用普通消息发送
+    // 将三个词库合并为一条消息发送，避免消息过多
+    const combinedMessage = [
+      `生物词库：\n${mobChineseTitle.join(' ')}`,
+      `方块词库：\n${blockChineseTitle.join(' ')}`,
+      `物品词库：\n${itemChineseTitle.join(' ')}`
+    ].join('\n\n');
 
-    // 发送方块词库
-    await sendMsg(session, `方块词库：\n${blockChineseTitle.join(' ')}`);
-
-    // 发送物品词库
-    await sendMsg(session, `物品词库：\n${itemChineseTitle.join(' ')}`);
+    await sendMsg(session, combinedMessage);
   }
 
   async function c(session: Session, guess: string | undefined) {
@@ -500,9 +493,9 @@ export function apply(ctx: Context, cfg: Config) {
 
         if (fuzzyMatches.length > 0) {
           const suggestions = fuzzyMatches.map(d => d.chinese_title).join('、');
-          await sendMsg(session, `${guess} 不在词库中\n\n是否想猜：${suggestions}？`);
+          await sendMsg(session, `${guess} 不在${record.gameMode === 'mob' ? '生物' : record.gameMode === 'item' ? '物品' : '方块'}词库中\n\n是否想猜：${suggestions}？`);
         } else {
-          await sendMsg(session, `${guess} 不在词库中`);
+          await sendMsg(session, `${guess} 不在${record.gameMode === 'mob' ? '生物' : record.gameMode === 'item' ? '物品' : '方块'}词库中`);
         }
         return;
       }
@@ -754,6 +747,8 @@ export function apply(ctx: Context, cfg: Config) {
     return versionString;
   }
 
+  const lastMessageInfo = new Map<string, { id: string; timestamp: number }>();
+
   async function sendMsg(session: Session, msg: string) {
     if (cfg.atReply) {
       msg = `${h.at(session.userId)}${h("p", "")}${msg}`;
@@ -761,6 +756,28 @@ export function apply(ctx: Context, cfg: Config) {
     if (cfg.quoteReply) {
       msg = `${h.quote(session.messageId)}${msg}`;
     }
-    await session.send(msg);
+    const [messageId]  = await session.send(msg);
+
+    if (cfg.retractDelay > 0 && messageId) {
+      const prevMessage = lastMessageInfo.get(session.channelId);
+
+      if (prevMessage) {
+        const timePassed = Date.now() - prevMessage.timestamp;
+        const remainingDelay = cfg.retractDelay * 1000 - timePassed;
+
+        if (timePassed < 118000) {
+          // 留2秒余量
+          setTimeout(async () => {
+            try {
+              await session.bot.deleteMessage(session.channelId, prevMessage.id);
+            } catch (error: any) {
+              logger.warn(`Failed to retract message ${prevMessage.id}: ${error.message}`);
+            }
+          }, remainingDelay);
+        }
+      }
+
+      lastMessageInfo.set(session.channelId, { id: messageId, timestamp: Date.now() });
+    }
   }
 }
