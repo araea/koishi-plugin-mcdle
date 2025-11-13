@@ -245,18 +245,14 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   async function ck(session: Session) {
-    // 获取平台信息
-    const platform = session.platform;
-
-    // 创建合并转发消息节点
-    const allContentNodes = [
-      h('message', { userId: session.userId }, `生物词库：\n${mobChineseTitle.join(' ')}`),
-      h('message', { userId: session.userId }, `方块词库：\n${blockChineseTitle.join(' ')}`),
-      h('message', { userId: session.userId }, `物品词库：\n${itemChineseTitle.join(' ')}`)
-    ];
-
     // 仅在OneBot平台尝试合并转发
-    if (['red', 'onebot'].includes(platform)) {
+    if (['red', 'onebot'].includes(session.platform)) {
+      // 创建合并转发消息节点
+      const allContentNodes = [
+        h('message', { userId: session.userId }, `生物词库：\n${mobChineseTitle.join(' ')}`),
+        h('message', { userId: session.userId }, `方块词库：\n${blockChineseTitle.join(' ')}`),
+        h('message', { userId: session.userId }, `物品词库：\n${itemChineseTitle.join(' ')}`)
+      ];
       try {
         await session.send(h('figure', {}, allContentNodes));
         return;
