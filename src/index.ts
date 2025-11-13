@@ -87,6 +87,7 @@ export interface Config {
   maxRank: number;
   dailyPlayLimit: number;
   retractDelay: number;
+  allowRepeatedGuesses: boolean;
 }
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("响应时@用户"),
@@ -100,6 +101,7 @@ export const Config: Schema<Config> = Schema.object({
     .description(
       `撤回上一条消息的等待时间，单位是秒。值为 0 时不启用自动撤回功能。`
     ),
+  allowRepeatedGuesses: Schema.boolean().default(false).description("允许重复猜测已猜过的词语（防止撤回时历史不可见）"),
 });
 // smb*
 declare module "koishi" {
@@ -190,8 +192,8 @@ export function apply(ctx: Context, cfg: Config) {
       // 过滤无关猜测：长度超过10个字符，或包含特殊符号、标点符号
       if (content.length > 10 || /[，。！？；：'"“”‘’【】（）《》.,!?;:'"\[\]()<>]/.test(content)) return next();
 
-      // 如果本局游戏已经猜过的中文标题，则直接next()
-      if (game.guessedChineseTitles.includes(content)) {
+      // 如果本局游戏已经猜过的中文标题，且不允许重复猜测，则直接next()
+      if (!cfg.allowRepeatedGuesses && game.guessedChineseTitles.includes(content)) {
         return next();
       }
 
@@ -472,8 +474,8 @@ export function apply(ctx: Context, cfg: Config) {
         return;
       }
 
-      // 判断是否已经猜过该中文标题
-      if (record.guessedChineseTitles.includes(guess)) {
+      // 判断是否已经猜过该中文标题，根据配置决定是否允许重复猜测
+      if (!cfg.allowRepeatedGuesses && record.guessedChineseTitles.includes(guess)) {
         await sendMsg(session, `${guess} 已猜过`);
         return;
       }
