@@ -88,6 +88,7 @@ export interface Config {
   dailyPlayLimit: number;
   retractDelay: number;
   allowRepeatedGuesses: boolean;
+  disableImages: boolean;
 }
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("响应时@用户"),
@@ -102,6 +103,7 @@ export const Config: Schema<Config> = Schema.object({
       `撤回上一条消息的等待时间，单位是秒。值为 0 时不启用自动撤回功能。`
     ),
   allowRepeatedGuesses: Schema.boolean().default(false).description("允许重复猜测已猜过的词语（防止撤回时历史不可见）"),
+  disableImages: Schema.boolean().default(false).description("不发送图片（解决网络问题导致的图片下载失败）"),
 });
 // smb*
 declare module "koishi" {
@@ -668,12 +670,12 @@ export function apply(ctx: Context, cfg: Config) {
     let resultText = "";
 
     // 先放置 wiki_image_url 的图片，不带 gui 标记
-    if (lastGuess.wiki_image_url) {
+    if (!cfg.disableImages && lastGuess.wiki_image_url) {
       resultText += `${h.image(lastGuess.wiki_image_url)}\n`;
-      // 放置 chinese_title 在图片后面
-      if (lastGuess.chinese_title) {
-        resultText += `名称：${lastGuess.chinese_title}\n`;
-      }
+    }
+    // 放置 chinese_title
+    if (lastGuess.chinese_title) {
+      resultText += `名称：${lastGuess.chinese_title}\n`;
     }
 
     for (const key in lastGuess) {
