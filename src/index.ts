@@ -660,6 +660,7 @@ export function apply(ctx: Context, cfg: Config) {
     await ctx.database.set("mcdle_rank", { userId }, updates);
   }
 
+  // gj*
   async function generateAndSendComparison(session: Session, guesses: any[]) {
     // 这里先使用文本结果展示猜测对比，待后续实现HTML截图功能
     if (guesses.length === 0) {
@@ -675,7 +676,27 @@ export function apply(ctx: Context, cfg: Config) {
     }
     // 放置 chinese_title
     if (lastGuess.chinese_title) {
-      resultText += `名称：${lastGuess.chinese_title}\n`;
+      // 排除与游戏不相关字段对应的 _gui，比如 url, image_url, wiki_image_url, id, title 等
+      const excludedKeys = ['id_gui', 'title_gui', 'url_gui', 'image_url_gui', 'wiki_image_url_gui'];
+      // 检查除 chinese_title 之外且非排除字段所有 _gui 字段是否均为 'true'
+      const guiKeys = Object.keys(lastGuess).filter(k =>
+        k.endsWith('_gui') &&
+        k !== 'chinese_title_gui' &&
+        !excludedKeys.includes(k)
+      );
+      const allOtherFieldsTrue = guiKeys.every(k => lastGuess[k] === 'true');
+      const chineseTitleGui = lastGuess['chinese_title_gui'];
+      let titleLine = `名称：${lastGuess.chinese_title}`;
+
+      if (allOtherFieldsTrue) {
+        if (chineseTitleGui === 'true') {
+          titleLine += ' 🟩';
+        } else {
+          titleLine += ' 🟥';
+        }
+      }
+
+      resultText += titleLine + '\n';
     }
 
     for (const key in lastGuess) {
