@@ -1,5 +1,6 @@
 import { Context, h, Schema, Session } from 'koishi'
 import { mobData, blockData, itemData, MobData, BlockData, ItemData, valueMap, keyMap, blockChineseTitle, mobChineseTitle, itemChineseTitle } from './data';
+import { config } from 'process';
 // mobData: MobData[]
 // blockData: BlockData[]
 // itemData: ItemData[]
@@ -84,6 +85,7 @@ export interface Config {
   atReply: boolean;
   quoteReply: boolean;
   isEnableMiddleware: boolean;
+  addStatusTextAfterEmoji: boolean;
   maxRank: number;
   dailyPlayLimit: number;
   retractDelay: number;
@@ -94,6 +96,7 @@ export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("响应时@用户"),
   quoteReply: Schema.boolean().default(true).description("响应时引用消息"),
   isEnableMiddleware: Schema.boolean().default(false).description("启用中间件（无需指令直接猜测）"),
+  addStatusTextAfterEmoji: Schema.boolean().default(true).description("在状态表情后添加文字说明"),
   maxRank: Schema.number().default(10).min(0).description("排行榜最大显示人数"),
   dailyPlayLimit: Schema.number().default(1).min(1).description("每日游玩次数上限"),
   retractDelay: Schema.number()
@@ -687,12 +690,14 @@ export function apply(ctx: Context, cfg: Config) {
       const guiKey = `${key}_gui`;
       const guiStatus = lastGuess[guiKey];
 
-      let statusEmoji = "❓";
-      if (guiStatus === 'true') statusEmoji = "🟩";
-      else if (guiStatus === 'mixed') statusEmoji = "🟨";
-      else if (guiStatus === 'false') statusEmoji = "🟥";
-      else if (guiStatus === 'false_up') statusEmoji = "🟥⬆️";
-      else if (guiStatus === 'false_down') statusEmoji = "🟥⬇️";
+      const addText = cfg.addStatusTextAfterEmoji;
+
+      let statusEmoji = "❓" + (addText ? "(未知)" : "");
+      if (guiStatus === 'true') statusEmoji = "🟩" + (addText ? "(完全匹配)" : "");
+      else if (guiStatus === 'mixed') statusEmoji = "🟨" + (addText ? "(部分匹配)" : "");
+      else if (guiStatus === 'false') statusEmoji = "🟥" + (addText ? "(不匹配)" : "");
+      else if (guiStatus === 'false_up') statusEmoji = "🟥⬆️" + (addText ? "(答案更大)" : "");
+      else if (guiStatus === 'false_down') statusEmoji = "🟥⬇️" + (addText ? "(答案更小)" : "");
 
       // 中文字段名，默认用原key
       const displayKey = keyMap[key] || key;
