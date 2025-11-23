@@ -30,7 +30,7 @@ Koishi 的 Minecraft 猜词游戏插件。根据 Minecraft 物品、生物和方
 * [Koishi](https://koishi.chat/)
 * [MCDLE](https://www.mcdle.net/)
 * [Minecraft Wiki](https://minecraft.wiki/w/Minecraft_Wiki)
-* [@mikasa-akria](https://github.com/mikasa-akria)
+* [@magisk317](https://github.com/magisk317)
 
 ## QQ 群
 
