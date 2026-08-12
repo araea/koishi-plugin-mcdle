@@ -17,6 +17,13 @@
   },
   "license": "MIT OR Apache-2.0",
   "author": "Nawyjx <3373167460@qq.com>",
+  "contributors": [
+    {
+      "name": "VincentZyu233",
+      "email": "1830540513zyu@gmail.com",
+      "url": "https://github.com/VincentZyu233"
+    }
+  ],
   "homepage": "https://www.npmjs.com/package/koishi-plugin-mcdle?activeTab=readme",
   "repository": {
     "type": "git",
