@@ -1,12 +1,13 @@
 {
   "name": "koishi-plugin-mcdle",
   "description": "Koishi 的 Minecraft 猜词游戏插件。根据 Minecraft 物品、生物和方块的属性特征，猜测正确的名称。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
     "lib",
-    "dist"
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
   ],
   "koishi": {
     "service": {

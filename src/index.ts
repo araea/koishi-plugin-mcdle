@@ -967,7 +967,7 @@ export function apply(ctx: Context, cfg: Config) {
     if (cfg.quoteReply) {
       msg = `${h.quote(session.messageId)}${msg}`;
     }
-    const [messageId]  = await session.send(msg);
+    const [messageId] = await session.send(msg);
 
     if (cfg.retractDelay > 0 && messageId) {
       const prevMessage = lastMessageInfo.get(session.channelId);
@@ -977,14 +977,12 @@ export function apply(ctx: Context, cfg: Config) {
         const remainingDelay = cfg.retractDelay * 1000 - timePassed;
 
         if (timePassed < 118000) {
-          // 留2秒余量
-          setTimeout(async () => {
-            try {
-              await session.bot.deleteMessage(session.channelId, prevMessage.id);
-            } catch (error: any) {
-              logger.warn(`Failed to retract message ${prevMessage.id}: ${error.message}`);
-            }
-          }, remainingDelay);
+          // 留 2 秒余量；用 ctx.setTimeout 以便插件停用时一并清理
+          ctx.setTimeout(() => {
+            session.bot.deleteMessage(session.channelId, prevMessage.id).catch((error: any) => {
+              logger.warn(`撤回消息 ${prevMessage.id} 失败：${error.message}`);
+            });
+          }, Math.max(0, remainingDelay));
         }
       }
 
