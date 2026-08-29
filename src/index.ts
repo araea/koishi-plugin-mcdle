@@ -577,9 +577,9 @@ export function apply(ctx: Context, cfg: Config) {
       await sendMsg(
         session,
         textCard(
-          `今日 ${cfg.dailyPlayLimit} 局已经用完`,
+          `⚠️ 今日 ${cfg.dailyPlayLimit} 局已经用完`,
           `跨零点后重置，还要等 ${untilReset(now)}。`,
-          "在那之前可以逛逛 mcdle.排行榜 或 mcdle.词库。",
+          "在那之前可以查看 mcdle.排行榜 或 mcdle.词库。",
         ),
       );
       return;
@@ -630,7 +630,7 @@ export function apply(ctx: Context, cfg: Config) {
       );
       await sendMsg(
         session,
-        textCard("这一局的牌面已经无法还原", "已经把它收掉了，mcdle.猜 [名称] 可以重新开一局。"),
+        textCard("⚠️ 这一局的牌面已经无法还原", "已经把它收掉了。发送 mcdle.猜 [名称] 可以重新开一局。"),
       );
       return;
     }
@@ -669,7 +669,7 @@ export function apply(ctx: Context, cfg: Config) {
       await sendMsg(
         session,
         textCard(
-          `「${guess}」这一局已经猜过了`,
+          `⚠️ 「${guess}」这一局已经猜过了`,
           `本局已猜 ${state.titles.length} 个：${state.titles.join(" › ")}`,
           "换一个还没试过的词条吧。",
         ),
@@ -686,7 +686,7 @@ export function apply(ctx: Context, cfg: Config) {
       await sendMsg(
         session,
         textCard(
-          `「${guess}」不在${modeName(mode)}词库里`,
+          `⚠️ 「${guess}」不在${modeName(mode)}词库里`,
           near.length ? `是不是想猜：${near.join("、")}？` : null,
           `本局共有 ${MODES[mode].total} 个${modeName(mode)}候选，mcdle.词库 可以全部翻看。`,
         ),
@@ -815,7 +815,7 @@ export function apply(ctx: Context, cfg: Config) {
       await sendCard(
         session,
         rankCard([], 0),
-        textCard("排行榜还空着", "用 mcdle.猜 开出第一局，这里的第一行就是你。"),
+        textCard("⚠️ 排行榜还空着", "用 mcdle.猜 开出第一局，这里的第一行就是你。"),
       );
       return;
     }
