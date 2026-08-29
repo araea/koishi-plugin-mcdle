@@ -50,14 +50,14 @@ puppeteer 是**可选**依赖。未安装、渲染超时或截图失败时，都
 
 ## 致谢
 
-* [Koishi](https://koishi.chat/)
-* [MCDLE](https://www.mcdle.net/)
-* [Minecraft Wiki](https://minecraft.wiki/w/Minecraft_Wiki)
-* [@magisk317](https://github.com/magisk317)
+- [Koishi](https://koishi.chat/)
+- [MCDLE](https://www.mcdle.net/)
+- [Minecraft Wiki](https://minecraft.wiki/w/Minecraft_Wiki)
+- [@magisk317](https://github.com/magisk317)
 
 ## QQ 群
 
-* 956758505
+- 956758505
 
 <br>
 
