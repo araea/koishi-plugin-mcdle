@@ -145,6 +145,7 @@ interface Mcdle {
   gameEnded: boolean;
   lastGameStartTime: Date;
   gameMode: 'mob' | 'item' | 'block' | null;
+  formatVersion: number;
 }
 
 interface McdleRank {
@@ -156,6 +157,9 @@ interface McdleRank {
   blockSuccessCount: number;
   totalSuccessCount: number;
 }
+
+/** 猜测记录的写入格式版本。旧版本没有这一列，升级上来的进行中一局需要退回重开。 */
+const FORMAT_VERSION = 1;
 
 export function apply(ctx: Context, cfg: Config) {
   //tzb*
@@ -172,6 +176,9 @@ export function apply(ctx: Context, cfg: Config) {
       gameEnded: { type: "boolean", initial: true },
       lastGameStartTime: { type: "timestamp", initial: new Date(0) },
       gameMode: { type: "string", initial: null },
+      // 猜测记录的写入格式：旧版本留下的进行中一局无法用现在的图片牌面渲染，
+      // 靠这一列把它们认出来（老行迁移后为 0/null）
+      formatVersion: { type: "unsigned", initial: 0 },
     },
     {
       primary: "channelId",
@@ -556,11 +563,82 @@ export function apply(ctx: Context, cfg: Config) {
     const now = new Date();
     await resetDailyIfNeeded(session, record, now);
 
+    // 旧版本升级上来时可能带着一局没猜完的：旧记录渲染不出新版牌面，退回词库重开
+    if (!record.gameEnded && record.formatVersion !== FORMAT_VERSION) {
+      if (record.guesses.length) {
+        await rollbackLegacyGame(session, record, guess, now);
+        return;
+      }
+      // 刚开局还没落过猜测记录的，无牌面可坏，补上标记照常继续
+      await ctx.database.set(
+        "mcdle",
+        { channelId: session.channelId },
+        { formatVersion: FORMAT_VERSION },
+      );
+      record.formatVersion = FORMAT_VERSION;
+    }
+
     if (record.gameEnded) {
       await startNewGame(session, record, guess, now);
     } else {
       await continueGame(session, record, guess);
     }
+  }
+
+  /**
+   * 旧版本遗留的残局：把没猜完的词退回到待猜测词池（从本频道历史中移除，之后
+   * 仍可能被抽为答案），作废这一局并退还当日额度，再凭玩家这次的输入重新开局。
+   */
+  async function rollbackLegacyGame(
+    session: Session,
+    record: Mcdle,
+    guess: string | undefined,
+    now: Date,
+  ) {
+    const answerTitle = record.answer?.chinese_title;
+    const history = answerTitle
+      ? record.historyChineseTitles.filter((title) => title !== answerTitle)
+      : record.historyChineseTitles;
+    // 这局是升级弄没的，不该再占玩家一个今日名额
+    const refunded = Math.max(0, record.dailyPlayedToday - 1);
+
+    await ctx.database.set(
+      "mcdle",
+      { channelId: session.channelId },
+      {
+        gameEnded: true,
+        answer: null,
+        guesses: [],
+        guessedChineseTitles: [],
+        gameMode: null,
+        historyChineseTitles: history,
+        dailyPlayedToday: refunded,
+        formatVersion: FORMAT_VERSION,
+      },
+    );
+
+    await sendMsg(
+      session,
+      textCard(
+        "检测到旧版本遗留的一局",
+        "这局是在旧版本下开始的，已有的猜测记录没法用新版图片牌面渲染。",
+        answerTitle ? `「${answerTitle}」已退回词库，之后仍有机会被抽到。` : null,
+        "这一局已作废并退还今日额度，马上为你重新开一局。",
+      ),
+    );
+
+    await startNewGame(
+      session,
+      {
+        ...record,
+        historyChineseTitles: history,
+        dailyPlayedToday: refunded,
+        gameEnded: true,
+        formatVersion: FORMAT_VERSION,
+      },
+      guess,
+      now,
+    );
   }
 
   async function startNewGame(
@@ -601,6 +679,7 @@ export function apply(ctx: Context, cfg: Config) {
         dailyPlayedToday: played,
         historyChineseTitles: [...record.historyChineseTitles, answer.chinese_title],
         gameMode: mode,
+        formatVersion: FORMAT_VERSION,
       },
     );
 
