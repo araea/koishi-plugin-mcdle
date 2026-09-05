@@ -158,8 +158,31 @@ interface McdleRank {
   totalSuccessCount: number;
 }
 
-/** 猜测记录的写入格式版本。旧版本没有这一列，升级上来的进行中一局需要退回重开。 */
-const FORMAT_VERSION = 1;
+/** 猜测记录的写入格式版本。2 起用 JSON 保存完整的对象数组。 */
+const FORMAT_VERSION = 2;
+
+/**
+ * `list` 在 Minato 中是逗号分隔的字符串列表，对象会被写成
+ * `[object Object]`。这里显式做 JSON 转换，同时容忍已经落库的损坏值，
+ * 具体内容会在读取局面后用猜过的标题重建。
+ */
+const guessesField = {
+  type: "text" as const,
+  initial: [] as any[],
+  dump(value: any[] | null): string {
+    return JSON.stringify(Array.isArray(value) ? value : []);
+  },
+  load(value: string | any[] | null): any[] {
+    if (Array.isArray(value)) return value;
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+};
 
 export function apply(ctx: Context, cfg: Config) {
   //tzb*
@@ -169,15 +192,14 @@ export function apply(ctx: Context, cfg: Config) {
     {
       channelId: "string",
       answer: { type: "json", initial: null },
-      guesses: { type: "list", initial: [] },
+      guesses: guessesField,
       historyChineseTitles: { type: "list", initial: [] },
       guessedChineseTitles: { type: "list", initial: [] },
       dailyPlayedToday: { type: "unsigned", initial: 0 },
       gameEnded: { type: "boolean", initial: true },
       lastGameStartTime: { type: "timestamp", initial: new Date(0) },
       gameMode: { type: "string", initial: null },
-      // 猜测记录的写入格式：旧版本留下的进行中一局无法用现在的图片牌面渲染，
-      // 靠这一列把它们认出来（老行迁移后为 0/null）
+      // 猜测记录的写入格式：靠这一列识别需要重建或回退的旧局面。
       formatVersion: { type: "unsigned", initial: 0 },
     },
     {
@@ -563,19 +585,34 @@ export function apply(ctx: Context, cfg: Config) {
     const now = new Date();
     await resetDailyIfNeeded(session, record, now);
 
-    // 旧版本升级上来时可能带着一局没猜完的：旧记录渲染不出新版牌面，退回词库重开
+    // list 字段会丢掉对象内容；用同步保存的标题与答案重建历史棋盘。
     if (!record.gameEnded && record.formatVersion !== FORMAT_VERSION) {
-      if (record.guesses.length) {
+      if (record.guessedChineseTitles.length) {
+        const restored = restoreGuessHistory(record);
+        if (restored) {
+          await ctx.database.set(
+            "mcdle",
+            { channelId: session.channelId },
+            { guesses: restored, formatVersion: FORMAT_VERSION },
+          );
+          record.guesses = restored;
+          record.formatVersion = FORMAT_VERSION;
+        } else {
+          await rollbackLegacyGame(session, record, guess, now);
+          return;
+        }
+      } else if (record.guesses.length) {
         await rollbackLegacyGame(session, record, guess, now);
         return;
+      } else {
+        // 刚开局还没有猜测时只需升级标记。
+        await ctx.database.set(
+          "mcdle",
+          { channelId: session.channelId },
+          { formatVersion: FORMAT_VERSION },
+        );
+        record.formatVersion = FORMAT_VERSION;
       }
-      // 刚开局还没落过猜测记录的，无牌面可坏，补上标记照常继续
-      await ctx.database.set(
-        "mcdle",
-        { channelId: session.channelId },
-        { formatVersion: FORMAT_VERSION },
-      );
-      record.formatVersion = FORMAT_VERSION;
     }
 
     if (record.gameEnded) {
@@ -583,6 +620,18 @@ export function apply(ctx: Context, cfg: Config) {
     } else {
       await continueGame(session, record, guess);
     }
+  }
+
+  /** 根据未受影响的标题列表，重新计算被 list 序列化丢掉的每次比对结果。 */
+  function restoreGuessHistory(record: Mcdle): any[] | null {
+    const mode = record.gameMode as Mode;
+    if (!mode || !MODES[mode] || !record.answer) return null;
+
+    const entries = record.guessedChineseTitles.map((title) =>
+      POOLS[mode].find((entry) => entry.chinese_title === title),
+    );
+    if (entries.some((entry) => !entry)) return null;
+    return entries.map((entry) => compareData(entry!, record.answer!));
   }
 
   /**
