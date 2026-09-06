@@ -894,7 +894,7 @@ export function boardCard(opts: BoardOptions): string {
   return shell(body, { accent: meta.accent })
 }
 
-export function startCard(mode: Mode, played: number, limit: number): string {
+export function startCard(mode: Mode, played: number, limit: number, middleware: boolean): string {
   const meta = MODES[mode]
   const fields = FIELDS[mode]
   const attrs = fields
@@ -919,7 +919,7 @@ export function startCard(mode: Mode, played: number, limit: number): string {
       <div class="sec">
         <div class="sec-t"><span>下 一 步</span></div>
         <div class="panel"><div class="rows">
-          <div class="row"><span class="cmd">mcdle.猜 [名称]</span><span class="m">提交一次猜测</span></div>
+          <div class="row"><span class="cmd">${middleware ? `直接发送${esc(meta.name)}名称` : 'mcdle.猜 [名称]'}</span><span class="m">提交后续猜测</span></div>
           <div class="row"><span class="cmd">mcdle.词库</span><span class="m">忘了有哪些词条时翻一翻</span></div>
         </div></div>
       </div>
@@ -993,7 +993,7 @@ export function winCard(o: WinOptions): string {
   return shell(body, { accent: meta.accent, width: 720 })
 }
 
-export function helpCard(dailyLimit: number, allowRepeat: boolean): string {
+export function helpCard(dailyLimit: number, allowRepeat: boolean, middleware: boolean): string {
   const modeCards = (['mob', 'item', 'block'] as Mode[])
     .map((m) => {
       const meta = MODES[m]
@@ -1029,6 +1029,7 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean): string {
         <div class="panel"><div class="rows">
           <div class="row"><span class="cmd">mcdle.猜 [名称]</span><span class="m">开始一局，或提交猜测</span></div>
           <div class="row"><span class="cmd">mcdle.猜</span><span class="m">局中直接使用可回看当前棋盘</span></div>
+          <div class="row"><span class="cmd">mcdle.裸猜 [开/关]</span><span class="m">临时切换本群无前缀续猜</span></div>
           <div class="row"><span class="cmd">mcdle.排行榜</span><span class="m">查看群内战绩</span></div>
           <div class="row"><span class="cmd">mcdle.词库</span><span class="m">查阅全部候选词条</span></div>
         </div></div>
@@ -1038,6 +1039,8 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean): string {
         <div class="panel"><div class="rows">
           <div class="row"><span class="k">·</span><span>每个群每日可开始 <b>${dailyLimit}</b> 局，跨零点重置。</span></div>
           <div class="row"><span class="k">·</span><span>${allowRepeat ? '允许重复提交已经猜过的词条。' : '同一局内不能重复提交已猜过的词条。'}</span></div>
+          <div class="row"><span class="k">·</span><span>${middleware ? '本群裸猜已开启：只接受当前模式词库中的完整纯文本词条。' : '本群裸猜已停用：续猜请使用完整指令。'}</span></div>
+          <div class="row"><span class="k">·</span><span>空指令与词库外名称不会开启新局或消耗额度。</span></div>
           <div class="row"><span class="k">·</span><span>词条与数据来自 Minecraft Wiki，版本号按发布先后比较。</span></div>
         </div></div>
       </div>
@@ -1047,7 +1050,7 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean): string {
   return shell(body, { accent: '#8ec96a', width: 760 })
 }
 
-export function introCard(dailyLimit: number): string {
+export function introCard(dailyLimit: number, middleware: boolean): string {
   const modeCards = (['mob', 'item', 'block'] as Mode[])
     .map((m) => {
       const meta = MODES[m]
@@ -1068,8 +1071,8 @@ export function introCard(dailyLimit: number): string {
       <div class="sec">
         <div class="sec-t"><span>三 步 上 手</span></div>
         <div class="panel"><div class="rows">
-          <div class="row"><span class="k">壹</span><span class="cmd">mcdle.猜 苦力怕</span><span class="m">随便报一个名字即可开局</span></div>
-          <div class="row"><span class="k">贰</span><span>对照颜色与箭头缩小范围，每一次猜测都会留在棋盘上。</span></div>
+          <div class="row"><span class="k">壹</span><span class="cmd">mcdle.猜 苦力怕</span><span class="m">用一个有效词条开局</span></div>
+          <div class="row"><span class="k">贰</span><span>${middleware ? '开局后可直接发送当前模式的完整词条名称继续猜测。' : '对照颜色与箭头缩小范围，每一次猜测都会留在棋盘上。'}</span></div>
           <div class="row"><span class="k">叁</span><span>锁定答案，战绩自动记入 <span class="cmd">mcdle.排行榜</span>。</span></div>
         </div></div>
       </div>
@@ -1077,6 +1080,7 @@ export function introCard(dailyLimit: number): string {
         <div class="sec-t"><span>今 日 额 度</span></div>
         <div class="panel"><div class="rows">
           <div class="row"><span class="k">·</span><span>每个群每日 <b>${dailyLimit}</b> 局，跨零点重置；详细规则见 <span class="cmd">mcdle.帮助</span>。</span></div>
+          <div class="row"><span class="k">·</span><span><span class="cmd">mcdle.裸猜 开/关</span> 可临时调整本群续猜方式。</span></div>
         </div></div>
       </div>
     </div>` +
@@ -1099,7 +1103,7 @@ export function rankCard(entries: RankEntry[], shown: number): string {
     const body =
       header(null, '排行榜', { big: '0', cap: '上榜人数' }) +
       `<div class="pad"><div class="empty">${px('trophy', 44)}
-        榜单还空着<br><span style="font-size:12px">用 <span class="cmd">mcdle.猜</span> 开出第一局，成为榜首</span></div></div>`
+        榜单还空着<br><span style="font-size:12px">用 <span class="cmd">mcdle.猜 苦力怕</span> 开出第一局，成为榜首</span></div></div>`
     return shell(body, { accent: '#e8b53c', width: 560 })
   }
 

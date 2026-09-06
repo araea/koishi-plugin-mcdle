@@ -77,7 +77,7 @@ import {
 export const name = 'mcdle'
 export const usage = `## 使用
 
-\`mcdle.猜 [名称]\` 开局或猜测。系统随机选择生物、物品或方块，按属性颜色提示接近程度。
+\`mcdle.猜 [名称]\` 使用词库中的有效名称开局或猜测。首个词条决定生物、物品或方块模式，系统再从同类词库中抽取答案。
 
 ## 提示
 
@@ -93,7 +93,8 @@ export const usage = `## 使用
 | 指令 | 说明 |
 | --- | --- |
 | \`mcdle\` | 查看帮助 |
-| \`mcdle.猜 [名称]\` | 开局或猜测 |
+| \`mcdle.猜 [名称]\` | 用有效词条开局或猜测 |
+| \`mcdle.裸猜 [开/关]\` | 临时切换本群无前缀续猜 |
 | \`mcdle.帮助\` | 完整说明 |
 | \`mcdle.排行榜\` | 群内战绩 |
 | \`mcdle.词库\` | 全部词条 |`;
@@ -112,8 +113,10 @@ export interface Config {
 }
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("响应时@用户"),
-  quoteReply: Schema.boolean().default(true).description("响应时引用消息"),
-  isEnableMiddleware: Schema.boolean().default(false).description("启用中间件（无需指令直接猜测）"),
+  quoteReply: Schema.boolean().default(false).description("响应时引用消息"),
+  isEnableMiddleware: Schema.boolean()
+    .default(false)
+    .description("是否默认启用无前缀续猜（仅在游戏进行中生效；mcdle.裸猜 可在单个群内临时切换）"),
   addStatusTextAfterEmoji: Schema.boolean().default(true).description("在状态表情后添加文字说明"),
   maxRank: Schema.number().default(10).min(0).description("排行榜最大显示人数"),
   dailyPlayLimit: Schema.number().default(1).min(1).description("每日游玩次数上限"),
@@ -134,7 +137,7 @@ declare module "koishi" {
   }
 }
 
-interface Mcdle {
+export interface Mcdle {
   id: number;
   channelId: string;
   answer: MobData | ItemData | BlockData | null;
@@ -184,6 +187,99 @@ const guessesField = {
   },
 };
 
+const DATA_BY_MODE: Record<Mode, (MobData | ItemData | BlockData)[]> = {
+  mob: mobData,
+  item: itemData,
+  block: blockData,
+};
+
+const allChineseTitles = new Set(
+  Object.values(DATA_BY_MODE).flatMap((entries) =>
+    entries.map((entry) => entry.chinese_title),
+  ),
+);
+
+/**
+ * 裸猜只接受一条完整、无修饰、且与 MCDLE 词库精确匹配的纯文本消息。
+ * 引用、@、图片、富文本及机器人消息都可能只是普通聊天的一部分，不能据此猜测。
+ */
+export function getMiddlewareGuess(session: Session): string | null {
+  const message = session.event.message;
+  if (
+    !message ||
+    message.quote ||
+    session.event.user?.isBot ||
+    message.user?.isBot
+  ) {
+    return null;
+  }
+
+  const elements = message.elements ?? [];
+  if (elements.length !== 1 || elements[0].type !== "text") return null;
+
+  const text = elements[0].attrs.content;
+  if (
+    typeof text !== "string" ||
+    text !== text.trim() ||
+    !text ||
+    !allChineseTitles.has(text)
+  ) {
+    return null;
+  }
+  return text;
+}
+
+/** 裸猜只能加入当前模式下已开始的有效局面，绝不能代替完整指令开新局。 */
+export function canHandleMiddlewareGuess(
+  game: Mcdle | null | undefined,
+  guess: string,
+  allowRepeatedGuesses = false,
+): boolean {
+  if (!game || game.gameEnded || !game.answer) return false;
+  const mode = game.gameMode as Mode;
+  if (!mode || !DATA_BY_MODE[mode]) return false;
+  if (!allowRepeatedGuesses && game.guessedChineseTitles?.includes(guess)) return false;
+  return DATA_BY_MODE[mode].some((entry) => entry.chinese_title === guess);
+}
+
+export type MiddlewareSwitch =
+  | { error: string }
+  | {
+      /** 写回本群覆盖表的新值；undefined 表示清除覆盖，重新跟随插件配置。 */
+      override: boolean | undefined;
+      on: boolean;
+      reverted: boolean;
+    };
+
+/**
+ * 无参调用在「配置默认」与「本群临时相反」间往返；显式开/关若与配置相同，
+ * 就清除冗余覆盖。临时状态只保存在内存中，插件重载后自然回到配置默认。
+ */
+export function resolveMiddlewareSwitch(
+  config: boolean,
+  override: boolean | undefined,
+  action: string | null | undefined,
+): MiddlewareSwitch {
+  const arg = action?.trim();
+  if (!arg) {
+    return override === undefined
+      ? { override: !config, on: !config, reverted: false }
+      : { override: undefined, on: config, reverted: true };
+  }
+  if (arg === "状态") {
+    return { override, on: override ?? config, reverted: false };
+  }
+
+  const on = arg === "开" || arg === "开启";
+  if (!on && arg !== "关" && arg !== "关闭") {
+    return { error: "裸猜开关只认 开 / 关 / 状态" };
+  }
+  if (on === config) {
+    return { override: undefined, on: config, reverted: override !== undefined };
+  }
+  return { override: on, on, reverted: false };
+}
+
 export function apply(ctx: Context, cfg: Config) {
   //tzb*
   // 游戏记录表定义
@@ -226,57 +322,68 @@ export function apply(ctx: Context, cfg: Config) {
   // cl*
   const logger = ctx.logger("mcdle")
 
-  //zjj*
-  if (cfg.isEnableMiddleware) {
-    ctx.middleware(async (session, next) => {
-      // 获取当前频道游戏记录
-      let gameRecords = await ctx.database.get("mcdle", { channelId: session.channelId });
-      if (!gameRecords || gameRecords.length === 0) {
-        return next();
-      }
-      const game = gameRecords[0];
+  // 裸猜的临时改动只落在当前频道，不改插件配置；插件重载后自动复原。
+  const middlewareOverrides = new Map<string, boolean>();
+  const middlewareOn = (channelId: string | undefined) =>
+    channelId === undefined
+      ? cfg.isEnableMiddleware
+      : middlewareOverrides.get(channelId) ?? cfg.isEnableMiddleware;
 
-      if (game.gameEnded) {
-        return next();
-      }
+  //zjj* 常驻注册，才能让 mcdle.裸猜 即时切换；所有消息先过纯文本与局面双重闸门。
+  ctx.middleware(async (session, next) => {
+    if (!session.channelId || !middlewareOn(session.channelId)) return await next();
 
-      const content = session.content.trim();
-      // 过滤无关猜测：长度超过10个字符，或包含特殊符号、标点符号
-      if (content.length > 10 || /[，。！？；：'"“”‘’【】（）《》.,!?;:'"\[\]()<>]/.test(content)) return next();
+    const guess = getMiddlewareGuess(session);
+    if (!guess) return await next();
 
-      // 如果本局游戏已经猜过的中文标题，且不允许重复猜测，则直接next()
-      if (!cfg.allowRepeatedGuesses && game.guessedChineseTitles.includes(content)) {
-        return next();
-      }
+    try {
+      const [game] = await ctx.database.get("mcdle", { channelId: session.channelId });
+      if (!canHandleMiddlewareGuess(game, guess, cfg.allowRepeatedGuesses)) return await next();
 
-      // 依据当前游戏模式选择对应数据源
-      let dataSource: (MobData | ItemData | BlockData)[] = [];
-      if (game.gameMode === "mob") dataSource = mobData;
-      else if (game.gameMode === "item") dataSource = itemData;
-      else if (game.gameMode === "block") dataSource = blockData;
-      else return next();
-
-      // 查找匹配项
-      const matched = dataSource.find(
-        (d) => d.chinese_title === content
+      // c() 在这里仍会重读最新局面，并明确禁止开局，堵住并发结束时的误开新局。
+      const handled = await c(session, guess, false);
+      return handled ? undefined : await next();
+    } catch (error) {
+      logger.warn(
+        "中间件读取或处理游戏状态失败，本次消息不作猜测：%s",
+        error instanceof Error ? error.message : String(error),
       );
-      if (!matched) {
-        return next();
-      }
-
-      // 执行猜测指令替代
-      await session.execute(`mcdle.猜 ${content}`);
-      return;
-    });
-  }
+      return await next();
+    }
+  });
 
   //zl*
   ctx.command("mcdle", "我的世界猜谜游戏")
     .action(async ({ session }) => mcdle(session));
-  ctx.command("mcdle.猜 [guess:string]").action(async ({ session }, guess) => c(session, guess?.trim()));
+  ctx.command("mcdle.猜 [guess:string]").action(async ({ session }, guess) => {
+    await c(session, guess?.trim());
+  });
   ctx.command("mcdle.帮助").action(async ({ session }) => bz(session));
   ctx.command("mcdle.排行榜").action(async ({ session }) => phb(session));
   ctx.command("mcdle.词库").action(async ({ session }) => ck(session));
+  ctx
+    .command("mcdle.裸猜 [state:string]", "临时开关本群的无前缀续猜")
+    .usage("例：mcdle.裸猜（切换）· mcdle.裸猜 开 · mcdle.裸猜 关 · mcdle.裸猜 状态")
+    .action(async ({ session }, state) => {
+      const result = resolveMiddlewareSwitch(
+        cfg.isEnableMiddleware,
+        session.channelId === undefined
+          ? undefined
+          : middlewareOverrides.get(session.channelId),
+        state,
+      );
+      if ("error" in result) {
+        await sendMsg(session, `⚠️ ${result.error}。例：mcdle.裸猜 开`);
+        return;
+      }
+
+      if (result.override === undefined) middlewareOverrides.delete(session.channelId);
+      else middlewareOverrides.set(session.channelId, result.override);
+      await sendMsg(
+        session,
+        middlewareSwitchText(result.on, result.override !== undefined, result.reverted),
+      );
+    });
 
 
   // tp* 文本排版
@@ -364,13 +471,18 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
-  function startText(mode: Mode, played: number): string {
+  function startText(mode: Mode, played: number, channelOn: boolean): string {
     const meta = MODES[mode];
     return textCard(
       `新的一局 · ${meta.name}模式`,
       `${meta.tagline}，从 ${meta.total} 个候选中锁定唯一答案。`,
       `可推理属性：${FIELDS[mode].map((k) => keyMap[k] || k).join(" / ")}`,
-      [`mcdle.猜 [名称]　提交一次猜测`, `今日进度 ${played}/${cfg.dailyPlayLimit}`],
+      [
+        channelOn
+          ? `直接发送词库中的${meta.name}名称，或使用 mcdle.猜 [名称]`
+          : `mcdle.猜 [名称]　提交一次猜测`,
+        `今日进度 ${played}/${cfg.dailyPlayLimit}`,
+      ],
     );
   }
 
@@ -448,25 +560,51 @@ export function apply(ctx: Context, cfg: Config) {
 
   // zlhs*
   async function mcdle(session: Session) {
-    await sendCard(session, introCard(cfg.dailyPlayLimit), introText());
+    const channelOn = middlewareOn(session.channelId);
+    await sendCard(
+      session,
+      introCard(cfg.dailyPlayLimit, channelOn),
+      introText(channelOn),
+    );
   }
 
-  function introText(): string {
+  function introText(channelOn: boolean): string {
     const total = mobData.length + itemData.length + blockData.length;
     return textCard(
       "MCDLE · 我的世界猜谜",
       `从 ${total} 个词条里，只凭属性提示锁定唯一答案。`,
       [
-        `壹　mcdle.猜 苦力怕　随便报个名字即可开局`,
-        `贰　对照颜色与箭头缩小范围，每次猜测都会留在棋盘上`,
+        `壹　mcdle.猜 苦力怕　用一个有效词条开局`,
+        channelOn
+          ? `贰　开局后可直接发送当前模式的词条名称继续猜测`
+          : `贰　对照颜色与箭头缩小范围，每次猜测都会留在棋盘上`,
         `叁　猜中后自动记入 mcdle.排行榜`,
       ],
       [
         `生物 ${mobData.length} · 物品 ${itemData.length} · 方块 ${blockData.length}`,
         `每日 ${cfg.dailyPlayLimit} 局，跨零点重置`,
+        `裸猜 mcdle.裸猜 开/关　临时调整本群续猜方式`,
         `完整规则：mcdle.帮助`,
       ],
     );
+  }
+
+  /** 裸猜开关的回复会同时说明生效状态、来源与安全边界。 */
+  function middlewareSwitchText(on: boolean, temporary: boolean, reverted: boolean): string {
+    const mark = on ? "✅" : "⛔";
+    const state = on ? "开启" : "停用";
+    const config = cfg.isEnableMiddleware ? "开启" : "停用";
+
+    if (!temporary) {
+      return `${mark} 裸猜续局 · ${reverted ? "已复原，" : ""}跟随插件配置（${state}）`;
+    }
+    const hint = on
+      ? "仅在已有对局中，直接发送当前模式的完整词条名称才会响应"
+      : "续猜请使用 mcdle.猜 [名称]";
+    return [
+      `${mark} 裸猜续局 · 本群临时${state}（插件配置：${config}）`,
+      `${hint}；再次发送 mcdle.裸猜 可复原`,
+    ].join("\n");
   }
 
   async function ck(session: Session) {
@@ -499,11 +637,7 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   // dj* 局面读写
-  const POOLS: Record<Mode, (MobData | ItemData | BlockData)[]> = {
-    mob: mobData,
-    item: itemData,
-    block: blockData,
-  };
+  const POOLS = DATA_BY_MODE;
 
   function modeOf(entry: MobData | ItemData | BlockData): Mode {
     if (mobData.includes(entry as MobData)) return "mob";
@@ -580,7 +714,11 @@ export function apply(ctx: Context, cfg: Config) {
     played: number;
   }
 
-  async function c(session: Session, guess: string | undefined) {
+  async function c(
+    session: Session,
+    guess: string | undefined,
+    allowStart = true,
+  ): Promise<boolean> {
     const record = await ensureRecord(session);
     const now = new Date();
     await resetDailyIfNeeded(session, record, now);
@@ -598,12 +736,12 @@ export function apply(ctx: Context, cfg: Config) {
           record.guesses = restored;
           record.formatVersion = FORMAT_VERSION;
         } else {
-          await rollbackLegacyGame(session, record, guess, now);
-          return;
+          await rollbackLegacyGame(session, record, guess, now, allowStart);
+          return true;
         }
       } else if (record.guesses.length) {
-        await rollbackLegacyGame(session, record, guess, now);
-        return;
+        await rollbackLegacyGame(session, record, guess, now, allowStart);
+        return true;
       } else {
         // 刚开局还没有猜测时只需升级标记。
         await ctx.database.set(
@@ -616,10 +754,12 @@ export function apply(ctx: Context, cfg: Config) {
     }
 
     if (record.gameEnded) {
+      if (!allowStart) return false;
       await startNewGame(session, record, guess, now);
     } else {
       await continueGame(session, record, guess);
     }
+    return true;
   }
 
   /** 根据未受影响的标题列表，重新计算被 list 序列化丢掉的每次比对结果。 */
@@ -643,6 +783,7 @@ export function apply(ctx: Context, cfg: Config) {
     record: Mcdle,
     guess: string | undefined,
     now: Date,
+    allowStart: boolean,
   ) {
     const answerTitle = record.answer?.chinese_title;
     const history = answerTitle
@@ -672,22 +813,26 @@ export function apply(ctx: Context, cfg: Config) {
         "检测到旧版本遗留的一局",
         "这局是在旧版本下开始的，已有的猜测记录没法用新版图片牌面渲染。",
         answerTitle ? `「${answerTitle}」已退回词库，之后仍有机会被抽到。` : null,
-        "这一局已作废并退还今日额度，马上为你重新开一局。",
+        allowStart
+          ? "这一局已作废并退还今日额度，马上按这次的完整指令重新开局。"
+          : "这一局已作废并退还今日额度，请用 mcdle.猜 [名称] 重新开局。",
       ),
     );
 
-    await startNewGame(
-      session,
-      {
-        ...record,
-        historyChineseTitles: history,
-        dailyPlayedToday: refunded,
-        gameEnded: true,
-        formatVersion: FORMAT_VERSION,
-      },
-      guess,
-      now,
-    );
+    if (allowStart) {
+      await startNewGame(
+        session,
+        {
+          ...record,
+          historyChineseTitles: history,
+          dailyPlayedToday: refunded,
+          gameEnded: true,
+          formatVersion: FORMAT_VERSION,
+        },
+        guess,
+        now,
+      );
+    }
   }
 
   async function startNewGame(
@@ -696,6 +841,35 @@ export function apply(ctx: Context, cfg: Config) {
     guess: string | undefined,
     now: Date,
   ) {
+    // 新局必须由完整指令携带一个真实词条开启；空参数和随意文本都不消耗额度。
+    if (!guess) {
+      await sendMsg(
+        session,
+        textCard(
+          "还没有进行中的游戏",
+          "请发送完整指令 mcdle.猜 [名称] 开局，例如 mcdle.猜 苦力怕。",
+          "名称必须来自 mcdle.词库。",
+        ),
+      );
+      return;
+    }
+
+    const opener = findAnywhere(guess);
+    if (!opener) {
+      const near = [...allChineseTitles]
+        .filter((title) => title.includes(guess) || guess.includes(title))
+        .slice(0, 3);
+      await sendMsg(
+        session,
+        textCard(
+          `⚠️ 「${guess}」不在 MCDLE 词库里`,
+          near.length ? `是不是想猜：${near.join("、")}？` : null,
+          "没有开启新局，也没有消耗今日额度。请用 mcdle.猜 [词库名称] 开局。",
+        ),
+      );
+      return;
+    }
+
     if (record.dailyPlayedToday >= cfg.dailyPlayLimit) {
       await sendMsg(
         session,
@@ -708,11 +882,8 @@ export function apply(ctx: Context, cfg: Config) {
       return;
     }
 
-    // 开局那句话如果本身就是个词条，就顺势决定模式，并把它记作第一次猜测
-    const opener = guess ? findAnywhere(guess) : undefined;
-    const mode: Mode = opener
-      ? modeOf(opener)
-      : (["mob", "item", "block"] as Mode[])[Math.floor(Math.random() * 3)];
+    // 开局词条决定模式，并顺势记作第一次猜测。
+    const mode = modeOf(opener);
     const answer = await pickAnswer(session, record, mode);
     const played = record.dailyPlayedToday + 1;
 
@@ -732,15 +903,18 @@ export function apply(ctx: Context, cfg: Config) {
       },
     );
 
-    await sendCard(session, startCard(mode, played, cfg.dailyPlayLimit), startText(mode, played));
+    const channelOn = middlewareOn(session.channelId);
+    await sendCard(
+      session,
+      startCard(mode, played, cfg.dailyPlayLimit, channelOn),
+      startText(mode, played, channelOn),
+    );
 
-    if (opener) {
-      await applyGuess(
-        session,
-        { mode, answer, guesses: [], titles: [], startedAt: now, played },
-        opener,
-      );
-    }
+    await applyGuess(
+      session,
+      { mode, answer, guesses: [], titles: [], startedAt: now, played },
+      opener,
+    );
   }
 
   async function continueGame(session: Session, record: Mcdle, guess: string | undefined) {
@@ -882,10 +1056,15 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   function bz(session: Session) {
-    return sendCard(session, helpCard(cfg.dailyPlayLimit, cfg.allowRepeatedGuesses), helpText());
+    const channelOn = middlewareOn(session.channelId);
+    return sendCard(
+      session,
+      helpCard(cfg.dailyPlayLimit, cfg.allowRepeatedGuesses, channelOn),
+      helpText(channelOn),
+    );
   }
 
-  function helpText(): string {
+  function helpText(channelOn: boolean): string {
     const legend = (["true", "mixed", "false", "false_up", "false_down"] as const).map(
       (s) => `${STATUS_META[s].emoji} ${STATUS_META[s].label}`,
     );
@@ -905,6 +1084,7 @@ export function apply(ctx: Context, cfg: Config) {
       [
         "mcdle.猜 [名称]　开始一局，或提交猜测",
         "mcdle.猜　局中直接使用可回看当前棋盘",
+        "mcdle.裸猜 [开/关]　临时切换本群无前缀续猜",
         "mcdle.排行榜　查看群内战绩",
         "mcdle.词库　查阅全部候选词条",
       ],
@@ -913,6 +1093,10 @@ export function apply(ctx: Context, cfg: Config) {
         cfg.allowRepeatedGuesses
           ? "允许重复提交已经猜过的词条。"
           : "同一局内不能重复提交已猜过的词条。",
+        channelOn
+          ? "本群裸猜已开启：仅已有对局、纯文本完整词条、且符合当前模式时响应。"
+          : "本群裸猜已停用：请使用完整猜测指令。",
+        "空指令和词库外名称不会开启新局或消耗额度。",
         "词条与数据来自 zh.minecraft.wiki，版本号按发布先后比较。",
       ],
     );

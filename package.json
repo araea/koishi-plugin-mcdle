@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-mcdle",
   "description": "Koishi 的 Minecraft 猜词游戏插件。",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -59,6 +59,10 @@
     }
   },
   "devDependencies": {
-    "koishi-plugin-puppeteer": "^3.9.0"
+    "koishi-plugin-puppeteer": "^3.9.0",
+    "tsx": "^4.23.13"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts"
   }
 }
