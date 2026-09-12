@@ -8,7 +8,6 @@ import {
   FIELDS,
   formatDuration,
   helpCard,
-  introCard,
   Mode,
   MODES,
   rankCard,
@@ -77,7 +76,7 @@ import {
 export const name = 'mcdle'
 export const usage = `## 使用
 
-\`mcdle.猜 [名称]\` 用有效词条开局或猜测。首次猜测的词条决定生物、物品或方块模式，系统再从同类词库中抽取答案。
+发送 \`mcdle\` 查看玩法与全部指令。\`mcdle.猜 [名称]\` 用有效词条开局或猜测。首次猜测的词条决定生物、物品或方块模式，系统再从同类词库中抽取答案。
 
 ## 提示
 
@@ -92,10 +91,9 @@ export const usage = `## 使用
 
 | 指令 | 说明 |
 | --- | --- |
-| \`mcdle\` | 帮助 |
+| \`mcdle\` | 玩法与指令说明 |
 | \`mcdle.猜 [名称]\` | 用有效词条开局或猜测 |
 | \`mcdle.裸猜 [开/关]\` | 切换本群无前缀续猜 |
-| \`mcdle.帮助\` | 完整说明 |
 | \`mcdle.排行榜\` | 群内战绩 |
 | \`mcdle.词库\` | 全部词条 |`;
 export const inject = { required: ["database"], optional: ["puppeteer"] };
@@ -353,12 +351,11 @@ export function apply(ctx: Context, cfg: Config) {
   });
 
   //zl*
-  ctx.command("mcdle", "我的世界猜谜游戏")
+  ctx.command("mcdle", "我的世界猜谜游戏 · 玩法与指令")
     .action(async ({ session }) => mcdle(session));
   ctx.command("mcdle.猜 [guess:string]").action(async ({ session }, guess) => {
     await c(session, guess?.trim());
   });
-  ctx.command("mcdle.帮助").action(async ({ session }) => bz(session));
   ctx.command("mcdle.排行榜").action(async ({ session }) => phb(session));
   ctx.command("mcdle.词库").action(async ({ session }) => ck(session));
   ctx
@@ -563,29 +560,8 @@ export function apply(ctx: Context, cfg: Config) {
     const channelOn = middlewareOn(session.channelId);
     await sendCard(
       session,
-      introCard(cfg.dailyPlayLimit, channelOn),
-      introText(channelOn),
-    );
-  }
-
-  function introText(channelOn: boolean): string {
-    const total = mobData.length + itemData.length + blockData.length;
-    return textCard(
-      "MCDLE · 我的世界猜谜",
-      `从 ${total} 个词条里，只凭属性提示锁定唯一答案。`,
-      [
-        `壹　mcdle.猜 苦力怕　用一个有效词条开局`,
-        channelOn
-          ? `贰　开局后可直接发送当前模式的词条名称继续猜测`
-          : `贰　对照颜色与箭头缩小范围，每次猜测都会留在棋盘上`,
-        `叁　猜中后自动记入 mcdle.排行榜`,
-      ],
-      [
-        `生物 ${mobData.length} · 物品 ${itemData.length} · 方块 ${blockData.length}`,
-        `每日 ${cfg.dailyPlayLimit} 局，跨零点重置`,
-        `裸猜 mcdle.裸猜 开/关　临时调整本群续猜方式`,
-        `完整规则：mcdle.帮助`,
-      ],
+      helpCard(cfg.dailyPlayLimit, cfg.allowRepeatedGuesses, channelOn),
+      helpText(channelOn),
     );
   }
 
@@ -1055,22 +1031,14 @@ export function apply(ctx: Context, cfg: Config) {
     );
   }
 
-  function bz(session: Session) {
-    const channelOn = middlewareOn(session.channelId);
-    return sendCard(
-      session,
-      helpCard(cfg.dailyPlayLimit, cfg.allowRepeatedGuesses, channelOn),
-      helpText(channelOn),
-    );
-  }
-
   function helpText(channelOn: boolean): string {
+    const total = mobData.length + itemData.length + blockData.length;
     const legend = (["true", "mixed", "false", "false_up", "false_down"] as const).map(
       (s) => `${STATUS_META[s].emoji} ${STATUS_META[s].label}`,
     );
     return textCard(
-      "MCDLE 玩法说明",
-      "每局随机抽一个生物、物品或方块，你的每次猜测都会逐项与答案比对，用颜色告诉你差在哪里。",
+      "MCDLE · 我的世界猜谜",
+      `从 ${total} 个词条里，只凭属性提示锁定唯一答案。每局随机抽一个生物、物品或方块，首次猜测的词条属于哪一类，本局就在哪一类里出题。`,
       legend,
       [
         "部分匹配的字段里，【】括起来的就是与答案重合的那几项。",
@@ -1082,6 +1050,14 @@ export function apply(ctx: Context, cfg: Config) {
         `方块 ${blockData.length} 条 · ${FIELDS.block.length} 项属性`,
       ],
       [
+        `壹　mcdle.猜 苦力怕　用一个有效词条开局`,
+        channelOn
+          ? `贰　开局后可直接发送当前模式的词条名称继续猜测`
+          : `贰　对照颜色与箭头缩小范围，每次猜测都会留在棋盘上`,
+        `叁　猜中后自动记入 mcdle.排行榜`,
+      ],
+      [
+        "mcdle　这份玩法与指令说明",
         "mcdle.猜 [名称]　开始一局，或提交猜测",
         "mcdle.猜　局中直接使用可回看当前棋盘",
         "mcdle.裸猜 [开/关]　临时切换本群无前缀续猜",

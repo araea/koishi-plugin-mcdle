@@ -1006,10 +1006,18 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean, middleware: b
     .join('')
 
   const legend = legendChips()
+  const total = mobData.length + itemData.length + blockData.length
 
   const body =
-    header(null, '我的世界猜谜 · 玩法说明', { big: `${dailyLimit}`, cap: '每日局数上限' }) +
+    header(null, '猜生物 · 猜物品 · 猜方块', { big: `${total}`, cap: '词条总量' }) +
     `<div class="pad">
+      <div class="sec">
+        <div class="sec-t"><span>玩 什 么</span></div>
+        <div class="panel"><div class="rows">
+          <div class="row"><span>每局随机抽一个生物、物品或方块，你的每次猜测都会逐项与答案比对，用颜色告诉你差在哪里。</span></div>
+          <div class="row"><span>首次猜测的词条属于哪一类，本局就在哪一类里出题。</span></div>
+        </div></div>
+      </div>
       <div class="sec">
         <div class="sec-t"><span>三 种 模 式</span></div>
         <div class="grid3">${modeCards}</div>
@@ -1025,8 +1033,17 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean, middleware: b
         </div>
       </div>
       <div class="sec">
+        <div class="sec-t"><span>三 步 上 手</span></div>
+        <div class="panel"><div class="rows">
+          <div class="row"><span class="k">壹</span><span class="cmd">mcdle.猜 苦力怕</span><span class="m">用一个有效词条开局</span></div>
+          <div class="row"><span class="k">贰</span><span>${middleware ? '开局后可直接发送当前模式的完整词条名称继续猜测。' : '对照颜色与箭头缩小范围，每一次猜测都会留在棋盘上。'}</span></div>
+          <div class="row"><span class="k">叁</span><span>锁定答案，战绩自动记入 <span class="cmd">mcdle.排行榜</span>。</span></div>
+        </div></div>
+      </div>
+      <div class="sec">
         <div class="sec-t"><span>指 令</span></div>
         <div class="panel"><div class="rows">
+          <div class="row"><span class="cmd">mcdle</span><span class="m">这份玩法与指令说明</span></div>
           <div class="row"><span class="cmd">mcdle.猜 [名称]</span><span class="m">开始一局，或提交猜测</span></div>
           <div class="row"><span class="cmd">mcdle.猜</span><span class="m">局中直接使用可回看当前棋盘</span></div>
           <div class="row"><span class="cmd">mcdle.裸猜 [开/关]</span><span class="m">临时切换本群无前缀续猜</span></div>
@@ -1045,48 +1062,9 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean, middleware: b
         </div></div>
       </div>
     </div>` +
-    noteRow('词条数据来自 zh.minecraft.wiki')
-
-  return shell(body, { accent: '#8ec96a', width: 760 })
-}
-
-export function introCard(dailyLimit: number, middleware: boolean): string {
-  const modeCards = (['mob', 'item', 'block'] as Mode[])
-    .map((m) => {
-      const meta = MODES[m]
-      return `<div class="mode-card" style="--accent:${meta.accent}">
-        <div class="top" style="color:${meta.accent}">${px(meta.icon, 17)}<span>${meta.name}</span></div>
-        <div class="cnt">${meta.total} 个词条</div>
-      </div>`
-    })
-    .join('')
-
-  const body =
-    header(null, '猜生物 · 猜物品 · 猜方块', { big: `${mobData.length + itemData.length + blockData.length}`, cap: '词条总量' }) +
-    `<div class="pad">
-      <div class="sec">
-        <div class="sec-t"><span>玩 什 么</span></div>
-        <div class="grid3">${modeCards}</div>
-      </div>
-      <div class="sec">
-        <div class="sec-t"><span>三 步 上 手</span></div>
-        <div class="panel"><div class="rows">
-          <div class="row"><span class="k">壹</span><span class="cmd">mcdle.猜 苦力怕</span><span class="m">用一个有效词条开局</span></div>
-          <div class="row"><span class="k">贰</span><span>${middleware ? '开局后可直接发送当前模式的完整词条名称继续猜测。' : '对照颜色与箭头缩小范围，每一次猜测都会留在棋盘上。'}</span></div>
-          <div class="row"><span class="k">叁</span><span>锁定答案，战绩自动记入 <span class="cmd">mcdle.排行榜</span>。</span></div>
-        </div></div>
-      </div>
-      <div class="sec">
-        <div class="sec-t"><span>今 日 额 度</span></div>
-        <div class="panel"><div class="rows">
-          <div class="row"><span class="k">·</span><span>每个群每日 <b>${dailyLimit}</b> 局，跨零点重置；详细规则见 <span class="cmd">mcdle.帮助</span>。</span></div>
-          <div class="row"><span class="k">·</span><span><span class="cmd">mcdle.裸猜 开/关</span> 可临时调整本群续猜方式。</span></div>
-        </div></div>
-      </div>
-    </div>` +
     noteRow('灵感来自 Wordle 与 mcdle.net')
 
-  return shell(body, { accent: '#8ec96a', width: 700 })
+  return shell(body, { accent: '#8ec96a', width: 760 })
 }
 
 export interface RankEntry {
