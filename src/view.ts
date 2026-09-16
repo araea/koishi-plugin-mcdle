@@ -1054,7 +1054,7 @@ export function winCard(o: WinOptions): string {
         <div class="attrs">${attrs}</div>
       </div>
     </div>` +
-    noteRow('mcdle.排行榜 查看战绩')
+    noteRow('mcdle.排行榜 查看累计战绩')
 
   return shell(body, { accent: meta.accent, width: 720 })
 }
@@ -1113,14 +1113,14 @@ export function helpCard(dailyLimit: number, allowRepeat: boolean, middleware: b
           <div class="row"><span class="cmd">mcdle.猜 [名称]</span><span class="m">开始一局，或提交猜测</span></div>
           <div class="row"><span class="cmd">mcdle.猜</span><span class="m">局中直接使用可回看当前棋盘</span></div>
           <div class="row"><span class="cmd">mcdle.裸猜 [开/关]</span><span class="m">临时切换本频道的无前缀续猜</span></div>
-          <div class="row"><span class="cmd">mcdle.排行榜</span><span class="m">查看群内战绩</span></div>
+          <div class="row"><span class="cmd">mcdle.排行榜</span><span class="m">查看累计战绩</span></div>
           <div class="row"><span class="cmd">mcdle.词库</span><span class="m">查阅全部候选词条</span></div>
         </div></div>
       </div>
       <div class="sec">
         <div class="sec-t"><span>规 则 细 则</span></div>
         <div class="panel"><div class="rows">
-          <div class="row"><span class="k">·</span><span>每个群每日可开始 <b>${dailyLimit}</b> 局，跨零点重置。</span></div>
+          <div class="row"><span class="k">·</span><span>每个频道每日可开始 <b>${dailyLimit}</b> 局，跨零点重置。</span></div>
           <div class="row"><span class="k">·</span><span>${allowRepeat ? '允许重复提交已经猜过的词条。' : '同一局内不能重复提交已猜过的词条。'}</span></div>
           <div class="row"><span class="k">·</span><span>${middleware ? '本频道裸猜已开启：只接受当前模式词库中的完整纯文本词条。' : '本频道裸猜已停用：续猜请用完整指令。'}</span></div>
           <div class="row"><span class="k">·</span><span>空指令与词库外名称不会开启新局或消耗额度。</span></div>
@@ -1147,7 +1147,7 @@ export function rankCard(entries: RankEntry[], shown: number): string {
     const body =
       header(null, '排行榜', { big: '0', cap: '上榜人数' }) +
       `<div class="pad"><div class="empty">${px('trophy', 44)}
-        榜单还空着<br><span style="font-size:12px">用 <span class="cmd">mcdle.猜 苦力怕</span> 开出第一局，成为榜首</span></div></div>`
+        排行榜还空着<br><span style="font-size:12px">用 <span class="cmd">mcdle.猜 苦力怕</span> 开出第一局，成为榜首</span></div></div>`
     return shell(body, { accent: accentOf(90), width: 560 })
   }
 
@@ -1173,7 +1173,7 @@ export function rankCard(entries: RankEntry[], shown: number): string {
     .join('')
 
   const body =
-    header(null, '群内战绩 · 按累计猜中排序', { big: `${shown}`, cap: '上榜人数' }) +
+    header(null, '累计战绩 · 按累计猜中排序', { big: `${shown}`, cap: '上榜人数' }) +
     `<div class="pad"><div class="rank">${rows}</div></div>` +
     noteRow('每猜中一局记一分，按模式分别计数')
 

@@ -78,15 +78,6 @@ export const usage = `## 使用
 
 发送 \`mcdle\` 查看玩法与全部指令。\`mcdle.猜 [名称]\` 用有效词条开局或猜测。首次猜测的词条决定生物、物品或方块模式，系统再从同类词库中抽取答案。
 
-## 提示
-
-| 符号 | 含义 |
-| --- | --- |
-| 🟩 | 完全匹配 |
-| 🟨 | 部分匹配 |
-| 🟥 | 不匹配 |
-| 🟥⬆️ / 🟥⬇️ | 答案更大 / 更小 |
-
 ## 指令
 
 | 指令 | 说明 |
@@ -95,13 +86,22 @@ export const usage = `## 使用
 | \`mcdle.猜 [名称]\` | 用有效词条开局或猜测 |
 | \`mcdle.裸猜 [开/关]\` | 开关本频道的无前缀续猜 |
 | \`mcdle.排行榜\` | 群内战绩 |
-| \`mcdle.词库\` | 全部词条 |`;
+| \`mcdle.词库\` | 全部词条 |
+
+## 提示
+
+| 符号 | 含义 |
+| --- | --- |
+| 🟩 | 完全匹配 |
+| 🟨 | 部分匹配 |
+| 🟥 | 不匹配 |
+| 🟥⬆️ / 🟥⬇️ | 答案更大 / 更小 |`;
 export const inject = { required: ["database"], optional: ["puppeteer"] };
 // pz*
 export interface Config {
   atReply: boolean;
   quoteReply: boolean;
-  isEnableMiddleware: boolean;
+  enableDirectInput: boolean;
   addStatusTextAfterEmoji: boolean;
   maxRank: number;
   dailyPlayLimit: number;
@@ -112,9 +112,9 @@ export interface Config {
 export const Config: Schema<Config> = Schema.object({
   atReply: Schema.boolean().default(false).description("回复时 @ 用户。"),
   quoteReply: Schema.boolean().default(false).description("回复时引用消息。"),
-  isEnableMiddleware: Schema.boolean()
+  enableDirectInput: Schema.boolean()
     .default(false)
-    .description("对局进行中时，直接发送词条名称即可续猜，无需指令前缀。各频道可用「mcdle.裸猜」临时切换。"),
+    .description("对局中直接发送词条名称即可续猜，无需指令前缀。各频道可用「mcdle.裸猜」临时切换。"),
   addStatusTextAfterEmoji: Schema.boolean().default(true).description("在状态方块后补一段文字说明。"),
   maxRank: Schema.number().default(10).min(0).description("排行榜最多显示的人数。"),
   dailyPlayLimit: Schema.number().default(1).min(1).description("每个频道每日可开始的局数，跨零点重置。"),
@@ -324,8 +324,8 @@ export function apply(ctx: Context, cfg: Config) {
   const middlewareOverrides = new Map<string, boolean>();
   const middlewareOn = (channelId: string | undefined) =>
     channelId === undefined
-      ? cfg.isEnableMiddleware
-      : middlewareOverrides.get(channelId) ?? cfg.isEnableMiddleware;
+      ? cfg.enableDirectInput
+      : middlewareOverrides.get(channelId) ?? cfg.enableDirectInput;
 
   //zjj* 常驻注册，才能让 mcdle.裸猜 即时切换；所有消息先过纯文本与局面双重闸门。
   ctx.middleware(async (session, next) => {
@@ -356,14 +356,14 @@ export function apply(ctx: Context, cfg: Config) {
   ctx.command("mcdle.猜 [guess:string]", "开局或提交一次猜测").action(async ({ session }, guess) => {
     await c(session, guess?.trim());
   });
-  ctx.command("mcdle.排行榜", "查看本频道战绩排行榜").action(async ({ session }) => phb(session));
+  ctx.command("mcdle.排行榜", "查看累计猜中排行榜").action(async ({ session }) => phb(session));
   ctx.command("mcdle.词库", "查阅全部候选词条").action(async ({ session }) => ck(session));
   ctx
     .command("mcdle.裸猜 [state:string]", "开关本频道的无前缀续猜")
     .usage("例：mcdle.裸猜（切换）· mcdle.裸猜 开 · mcdle.裸猜 关 · mcdle.裸猜 状态")
     .action(async ({ session }, state) => {
       const result = resolveMiddlewareSwitch(
-        cfg.isEnableMiddleware,
+        cfg.enableDirectInput,
         session.channelId === undefined
           ? undefined
           : middlewareOverrides.get(session.channelId),
@@ -386,16 +386,15 @@ export function apply(ctx: Context, cfg: Config) {
   // tp* 文本排版
   //
   // 图片渲染不可用时，所有回复都要有等价的文本形态。为了让两种形态读起来
-  // 像同一个游戏，文本也遵循固定的骨架：一条 ▍标题、一条分隔线、若干段落。
+  // 像同一个游戏，文本也遵循固定的骨架：一条 ▍标题、若干段落。
 
-  const RULE = "────────────";
 
   function textCard(title: string, ...sections: (string | string[] | null | undefined)[]): string {
     const body = sections
       .map((s) => (Array.isArray(s) ? s.filter(Boolean).join("\n") : s))
       .filter((s): s is string => !!s && !!s.trim())
       .join("\n\n");
-    return [`▍${title}`, RULE, body].filter(Boolean).join("\n");
+    return [`▍${title}`, body].filter(Boolean).join("\n");
   }
 
   function modeName(mode: Mode): string {
@@ -476,7 +475,7 @@ export function apply(ctx: Context, cfg: Config) {
       `可推理属性：${FIELDS[mode].map((k) => keyMap[k] || k).join(" / ")}`,
       [
         channelOn
-          ? `直接发送词库中的${meta.name}名称，或使用 mcdle.猜 [名称]`
+          ? `直接发送词库中的${meta.name}名称，或发送「mcdle.猜 [名称]」`
           : `mcdle.猜 [名称]　提交一次猜测`,
         `今日进度 ${played}/${cfg.dailyPlayLimit}`,
       ],
@@ -503,7 +502,7 @@ export function apply(ctx: Context, cfg: Config) {
       .join(" · ");
 
     return textCard(
-      "猜中了",
+      "🏆 猜中了",
       wikiImage(o.answer),
       `答案　${o.answer.chinese_title}${o.answer.title ? ` ${o.answer.title}` : ""}`,
       [
@@ -567,16 +566,16 @@ export function apply(ctx: Context, cfg: Config) {
 
   /** 裸猜开关的回复会同时说明生效状态、来源与安全边界。 */
   function middlewareSwitchText(on: boolean, temporary: boolean, reverted: boolean): string {
-    const mark = on ? "✅" : "⛔";
+    const mark = "✅";
     const state = on ? "开启" : "停用";
-    const config = cfg.isEnableMiddleware ? "开启" : "停用";
+    const config = cfg.enableDirectInput ? "开启" : "停用";
 
     if (!temporary) {
       return `${mark} 裸猜续局 · ${reverted ? "已复原，" : ""}跟随插件配置（${state}）`;
     }
     const hint = on
       ? "仅在已有对局中，直接发送当前模式的完整词条名称才会响应"
-      : "续猜请使用 mcdle.猜 [名称]";
+      : "续猜请发送「mcdle.猜 [名称]」";
     return [
       `${mark} 裸猜续局 · 本频道临时${state}（插件配置：${config}）`,
       `${hint}；再次发送 mcdle.裸猜 可复原`,
@@ -593,7 +592,7 @@ export function apply(ctx: Context, cfg: Config) {
     // 仅在OneBot平台尝试合并转发
     if (["red", "onebot"].includes(session.platform)) {
       const allContentNodes = sections.map(([title, words]) =>
-        h("message", { userId: session.userId }, `▍${title}\n${RULE}\n${words.join(" ")}`),
+        h("message", { userId: session.userId }, `▍${title}\n${words.join(" ")}`),
       );
       try {
         await session.send(h("figure", {}, allContentNodes));
@@ -608,7 +607,7 @@ export function apply(ctx: Context, cfg: Config) {
     // 将三个词库合并为一条消息发送，避免消息过多
     await sendMsg(
       session,
-      sections.map(([title, words]) => `▍${title}\n${RULE}\n${words.join(" ")}`).join("\n\n"),
+      sections.map(([title, words]) => `▍${title}\n${words.join(" ")}`).join("\n\n"),
     );
   }
 
@@ -690,7 +689,28 @@ export function apply(ctx: Context, cfg: Config) {
     played: number;
   }
 
+  /** 同频道的猜测串行处理：读状态、算、写状态不能并发。 */
+  const busyChannels = new Set<string>();
+
   async function c(
+    session: Session,
+    guess: string | undefined,
+    allowStart = true,
+  ): Promise<boolean> {
+    const channelId = session.channelId;
+    if (channelId && busyChannels.has(channelId)) {
+      await sendMsg(session, "⏳ 上一次猜测还在处理，稍等一下。");
+      return true;
+    }
+    if (channelId) busyChannels.add(channelId);
+    try {
+      return await guessOnce(session, guess, allowStart);
+    } finally {
+      if (channelId) busyChannels.delete(channelId);
+    }
+  }
+
+  async function guessOnce(
     session: Session,
     guess: string | undefined,
     allowStart = true,
@@ -786,8 +806,8 @@ export function apply(ctx: Context, cfg: Config) {
     await sendMsg(
       session,
       textCard(
-        "检测到旧版本遗留的一局",
-        "这局是在旧版本下开始的，已有的猜测记录没法用新版图片牌面渲染。",
+        "❌ 检测到旧版本遗留的一局",
+        "这一局是在旧版本下开始的，已有的猜测记录没法用新版图片牌面渲染。",
         answerTitle ? `「${answerTitle}」已退回词库，之后仍有机会被抽到。` : null,
         allowStart
           ? "这一局已作废并退还今日额度，马上按这次的完整指令重新开局。"
@@ -904,7 +924,7 @@ export function apply(ctx: Context, cfg: Config) {
       );
       await sendMsg(
         session,
-        textCard("⚠️ 这一局的牌面已经无法还原", "已经把它收掉了。发送「mcdle.猜 [名称]」重新开一局。"),
+        textCard("❌ 这一局的牌面已经无法还原", "已经把它收掉了。发送「mcdle.猜 [名称]」重新开一局。"),
       );
       return;
     }
@@ -1065,7 +1085,7 @@ export function apply(ctx: Context, cfg: Config) {
         "mcdle.词库　查阅全部候选词条",
       ],
       [
-        `每个群每日 ${cfg.dailyPlayLimit} 局，跨零点重置。`,
+        `每个频道每日 ${cfg.dailyPlayLimit} 局，跨零点重置。`,
         cfg.allowRepeatedGuesses
           ? "允许重复提交已经猜过的词条。"
           : "同一局内不能重复提交已猜过的词条。",
