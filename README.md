@@ -1,6 +1,6 @@
 # koishi-plugin-mcdle
 
-Minecraft 猜词游戏，词库覆盖生物、物品与方块
+我的世界猜谜 · 词库覆盖生物、物品与方块
 
 ## 安装
 
