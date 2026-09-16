@@ -93,7 +93,7 @@ export const usage = `## 使用
 | --- | --- |
 | \`mcdle\` | 玩法与指令说明 |
 | \`mcdle.猜 [名称]\` | 用有效词条开局或猜测 |
-| \`mcdle.裸猜 [开/关]\` | 切换本群无前缀续猜 |
+| \`mcdle.裸猜 [开/关]\` | 开关本频道的无前缀续猜 |
 | \`mcdle.排行榜\` | 群内战绩 |
 | \`mcdle.词库\` | 全部词条 |`;
 export const inject = { required: ["database"], optional: ["puppeteer"] };
@@ -110,22 +110,22 @@ export interface Config {
   disableImages: boolean;
 }
 export const Config: Schema<Config> = Schema.object({
-  atReply: Schema.boolean().default(false).description("响应时@用户"),
-  quoteReply: Schema.boolean().default(false).description("响应时引用消息"),
+  atReply: Schema.boolean().default(false).description("回复时 @ 用户。"),
+  quoteReply: Schema.boolean().default(false).description("回复时引用消息。"),
   isEnableMiddleware: Schema.boolean()
     .default(false)
-    .description("是否默认启用无前缀续猜（仅在游戏进行中生效；mcdle.裸猜 可在单个群内临时切换）"),
-  addStatusTextAfterEmoji: Schema.boolean().default(true).description("在状态表情后添加文字说明"),
-  maxRank: Schema.number().default(10).min(0).description("排行榜最大显示人数"),
-  dailyPlayLimit: Schema.number().default(1).min(1).description("每日游玩次数上限"),
+    .description("对局进行中时，直接发送词条名称即可续猜，无需指令前缀。各频道可用「mcdle.裸猜」临时切换。"),
+  addStatusTextAfterEmoji: Schema.boolean().default(true).description("在状态方块后补一段文字说明。"),
+  maxRank: Schema.number().default(10).min(0).description("排行榜最多显示的人数。"),
+  dailyPlayLimit: Schema.number().default(1).min(1).description("每个频道每日可开始的局数，跨零点重置。"),
   retractDelay: Schema.number()
     .min(0)
     .default(0)
     .description(
-      `撤回上一条消息的等待时间，单位是秒。值为 0 时不启用自动撤回功能。`
+      `自动撤回延迟（秒），0 表示不撤回。`
     ),
-  allowRepeatedGuesses: Schema.boolean().default(false).description("允许重复猜测已猜过的词语（防止撤回时历史不可见）"),
-  disableImages: Schema.boolean().default(false).description("不发送图片，全部改用文本（解决网络问题导致的图片下载失败）"),
+  allowRepeatedGuesses: Schema.boolean().default(false).description("允许重复提交已猜过的词条。消息被撤回、历史不可见时用得上。"),
+  disableImages: Schema.boolean().default(false).description("全部改用文本，不发送图片。图片下载常失败时用得上。"),
 });
 // smb*
 declare module "koishi" {
@@ -270,7 +270,7 @@ export function resolveMiddlewareSwitch(
 
   const on = arg === "开" || arg === "开启";
   if (!on && arg !== "关" && arg !== "关闭") {
-    return { error: "裸猜开关只认 开 / 关 / 状态" };
+    return { error: "裸猜开关只认「开」「关」「状态」" };
   }
   if (on === config) {
     return { override: undefined, on: config, reverted: override !== undefined };
@@ -353,13 +353,13 @@ export function apply(ctx: Context, cfg: Config) {
   //zl*
   ctx.command("mcdle", "我的世界猜谜游戏 · 玩法与指令")
     .action(async ({ session }) => mcdle(session));
-  ctx.command("mcdle.猜 [guess:string]").action(async ({ session }, guess) => {
+  ctx.command("mcdle.猜 [guess:string]", "开局或提交一次猜测").action(async ({ session }, guess) => {
     await c(session, guess?.trim());
   });
-  ctx.command("mcdle.排行榜").action(async ({ session }) => phb(session));
-  ctx.command("mcdle.词库").action(async ({ session }) => ck(session));
+  ctx.command("mcdle.排行榜", "查看本频道战绩排行榜").action(async ({ session }) => phb(session));
+  ctx.command("mcdle.词库", "查阅全部候选词条").action(async ({ session }) => ck(session));
   ctx
-    .command("mcdle.裸猜 [state:string]", "临时开关本群的无前缀续猜")
+    .command("mcdle.裸猜 [state:string]", "开关本频道的无前缀续猜")
     .usage("例：mcdle.裸猜（切换）· mcdle.裸猜 开 · mcdle.裸猜 关 · mcdle.裸猜 状态")
     .action(async ({ session }, state) => {
       const result = resolveMiddlewareSwitch(
@@ -370,7 +370,7 @@ export function apply(ctx: Context, cfg: Config) {
         state,
       );
       if ("error" in result) {
-        await sendMsg(session, `⚠️ ${result.error}。例：mcdle.裸猜 开`);
+        await sendMsg(session, `⚠️ ${result.error}\n例：「mcdle.裸猜 开」，不带参数则来回切换。`);
         return;
       }
 
@@ -578,7 +578,7 @@ export function apply(ctx: Context, cfg: Config) {
       ? "仅在已有对局中，直接发送当前模式的完整词条名称才会响应"
       : "续猜请使用 mcdle.猜 [名称]";
     return [
-      `${mark} 裸猜续局 · 本群临时${state}（插件配置：${config}）`,
+      `${mark} 裸猜续局 · 本频道临时${state}（插件配置：${config}）`,
       `${hint}；再次发送 mcdle.裸猜 可复原`,
     ].join("\n");
   }
@@ -791,7 +791,7 @@ export function apply(ctx: Context, cfg: Config) {
         answerTitle ? `「${answerTitle}」已退回词库，之后仍有机会被抽到。` : null,
         allowStart
           ? "这一局已作废并退还今日额度，马上按这次的完整指令重新开局。"
-          : "这一局已作废并退还今日额度，请用 mcdle.猜 [名称] 重新开局。",
+          : "这一局已作废并退还今日额度，发送「mcdle.猜 [名称]」重新开局。",
       ),
     );
 
@@ -822,8 +822,8 @@ export function apply(ctx: Context, cfg: Config) {
       await sendMsg(
         session,
         textCard(
-          "还没有进行中的游戏",
-          "请发送完整指令 mcdle.猜 [名称] 开局，例如 mcdle.猜 苦力怕。",
+          "💡 本频道没有进行中的对局",
+          "发送完整指令开局，例如「mcdle.猜 苦力怕」。",
           "名称必须来自 mcdle.词库。",
         ),
       );
@@ -840,7 +840,7 @@ export function apply(ctx: Context, cfg: Config) {
         textCard(
           `⚠️ 「${guess}」不在 MCDLE 词库里`,
           near.length ? `是不是想猜：${near.join("、")}？` : null,
-          "没有开启新局，也没有消耗今日额度。请用 mcdle.猜 [词库名称] 开局。",
+          "没有开启新局，也没有消耗今日额度。换一个词库里的名称再来。",
         ),
       );
       return;
@@ -850,9 +850,9 @@ export function apply(ctx: Context, cfg: Config) {
       await sendMsg(
         session,
         textCard(
-          `⚠️ 今日 ${cfg.dailyPlayLimit} 局已经用完`,
+          `⏳ 今日 ${cfg.dailyPlayLimit} 局已经用完`,
           `跨零点后重置，还要等 ${untilReset(now)}。`,
-          "在那之前可以查看 mcdle.排行榜 或 mcdle.词库。",
+          "在那之前可以看看 mcdle.排行榜 或 mcdle.词库。",
         ),
       );
       return;
@@ -904,7 +904,7 @@ export function apply(ctx: Context, cfg: Config) {
       );
       await sendMsg(
         session,
-        textCard("⚠️ 这一局的牌面已经无法还原", "已经把它收掉了。发送 mcdle.猜 [名称] 可以重新开一局。"),
+        textCard("⚠️ 这一局的牌面已经无法还原", "已经把它收掉了。发送「mcdle.猜 [名称]」重新开一局。"),
       );
       return;
     }
@@ -932,7 +932,7 @@ export function apply(ctx: Context, cfg: Config) {
           textCard(
             `轮到你了 · ${modeName(mode)}模式`,
             `报一个${modeName(mode)}的名字，比如 mcdle.猜 ${POOLS[mode][0].chinese_title}。`,
-            `拿不准有哪些词条就看 mcdle.词库。`,
+            `拿不准有哪些词条，发送「mcdle.词库」翻一翻。`,
           ),
         );
       }
@@ -1060,7 +1060,7 @@ export function apply(ctx: Context, cfg: Config) {
         "mcdle　这份玩法与指令说明",
         "mcdle.猜 [名称]　开始一局，或提交猜测",
         "mcdle.猜　局中直接使用可回看当前棋盘",
-        "mcdle.裸猜 [开/关]　临时切换本群无前缀续猜",
+        "mcdle.裸猜 [开/关]　临时切换本频道的无前缀续猜",
         "mcdle.排行榜　查看群内战绩",
         "mcdle.词库　查阅全部候选词条",
       ],
@@ -1070,8 +1070,8 @@ export function apply(ctx: Context, cfg: Config) {
           ? "允许重复提交已经猜过的词条。"
           : "同一局内不能重复提交已猜过的词条。",
         channelOn
-          ? "本群裸猜已开启：仅已有对局、纯文本完整词条、且符合当前模式时响应。"
-          : "本群裸猜已停用：请使用完整猜测指令。",
+          ? "本频道裸猜已开启：仅已有对局、纯文本完整词条、且符合当前模式时响应。"
+          : "本频道裸猜已停用：续猜请用完整指令。",
         "空指令和词库外名称不会开启新局或消耗额度。",
         "词条与数据来自 zh.minecraft.wiki，版本号按发布先后比较。",
       ],
@@ -1099,7 +1099,7 @@ export function apply(ctx: Context, cfg: Config) {
       await sendCard(
         session,
         rankCard([], 0),
-        textCard("⚠️ 排行榜还空着", "用 mcdle.猜 开出第一局，这里的第一行就是你。"),
+        textCard("📋 排行榜还空着", "第一个猜中的人，名字会写在这里。发送「mcdle.猜 苦力怕」开一局。"),
       );
       return;
     }
@@ -1113,7 +1113,7 @@ export function apply(ctx: Context, cfg: Config) {
     await sendCard(
       session,
       rankCard(entries, entries.length),
-      textCard(`排行榜 · 前 ${entries.length} 名`, lines, "每猜中一局记一分，按模式分别计数。"),
+      textCard(`📋 排行榜 · 前 ${entries.length} 名`, lines, "每猜中一局记一分，按模式分别计数。"),
     );
   }
 
