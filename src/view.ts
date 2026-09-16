@@ -673,7 +673,7 @@ th.list .col{max-width:168px}
 .thumb img{max-width:38px;max-height:38px;display:block}
 .thumb img.sharp{image-rendering:pixelated}
 .thumb img.broken{display:none}
-.thumb .fb{display:none;color:var(--md-sys-color-outline)}
+.thumb .fb{display:none;color:var(--md-sys-color-on-surface-variant)}
 .thumb.failed .fb{display:block}
 .name .txt{min-width:0}
 .name .cn{font-size:15px;font-weight:600;line-height:1.25}
@@ -681,7 +681,7 @@ th.list .col{max-width:168px}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
 .name.correct .cn,.name.correct .en,.name.correct .no{color:#fff}
 .name.correct .en,.name.correct .no{opacity:.78}
-.name .no{font-size:10px;color:var(--md-sys-color-outline);margin-top:3px}
+.name .no{font-size:10px;color:var(--md-sys-color-on-surface-variant);margin-top:3px}
 
 /* 最新一行的强调：外圈描边 + 行首的圆头标记 */
 tr.fresh .tile,tr.fresh .name{box-shadow:0 0 0 2px var(--accent)}
@@ -712,7 +712,7 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
   font-size:11.5px;color:#fff;background:var(--tile);
 }
 .lg.s-none{color:var(--md-sys-color-on-surface-variant)}
-.tip{margin-left:auto;font-size:11.5px;color:var(--md-sys-color-outline);letter-spacing:.02em}
+.tip{margin-left:auto;font-size:11.5px;color:var(--md-sys-color-on-surface-variant);letter-spacing:.02em}
 
 /* ── 通用区块 ─────────────────────────────────────── */
 .sec{margin-top:22px}
@@ -768,7 +768,7 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
 .reveal .big-thumb img{max-width:112px;max-height:112px;display:block}
 .reveal .big-thumb img.sharp{image-rendering:pixelated}
 .reveal .big-thumb img.broken{display:none}
-.reveal .big-thumb .fb{display:none;color:var(--md-sys-color-outline)}
+.reveal .big-thumb .fb{display:none;color:var(--md-sys-color-on-surface-variant)}
 .reveal .big-thumb.failed .fb{display:block}
 .reveal .cn{font-size:36px;font-weight:600;line-height:1.1}
 .reveal .en{font-size:13px;letter-spacing:.1em;color:var(--md-sys-color-on-surface-variant);margin-top:10px}
@@ -810,11 +810,11 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
 .rk .sp{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--md-sys-color-on-surface-variant)}
 .rk .tot{flex:none;text-align:right}
 .rk .tot .n{font-size:22px;font-weight:600;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
-.rk .tot .c{font-size:10px;color:var(--md-sys-color-outline);margin-top:5px;letter-spacing:.06em}
+.rk .tot .c{font-size:10px;color:var(--md-sys-color-on-surface-variant);margin-top:5px;letter-spacing:.06em}
 
 .empty{padding:36px 20px;min-width:400px;text-align:center;
   color:var(--md-sys-color-on-surface-variant);font-size:13.5px;line-height:2}
-.empty .px{margin:0 auto 14px;color:var(--md-sys-color-outline)}
+.empty .px{margin:0 auto 14px;color:var(--md-sys-color-on-surface-variant)}
 `
 
 export interface ShellOptions {
@@ -1158,7 +1158,7 @@ export function rankCard(entries: RankEntry[], shown: number): string {
       const split = (['mob', 'item', 'block'] as Mode[])
         .map((m) => {
           const n = m === 'mob' ? e.mob : m === 'item' ? e.item : e.block
-          return `<span class="sp" style="color:${n ? MODES[m].accent : SCHEME.outline}">${px(MODES[m].icon, 10)}<span>${n}</span></span>`
+          return `<span class="sp" style="color:${n ? MODES[m].accent : SCHEME.onSurfaceVariant}">${px(MODES[m].icon, 10)}<span>${n}</span></span>`
         })
         .join('')
       const w = Math.round((e.total / max) * 100)
