@@ -85,7 +85,7 @@ export const usage = `## 使用
 | \`mcdle\` | 玩法与指令说明 |
 | \`mcdle.猜 [名称]\` | 用有效词条开局或猜测 |
 | \`mcdle.裸猜 [开/关]\` | 开关本频道的无前缀续猜 |
-| \`mcdle.排行榜\` | 群内战绩 |
+| \`mcdle.排行榜\` | 累计战绩 |
 | \`mcdle.词库\` | 全部词条 |
 
 ## 提示
@@ -425,6 +425,13 @@ export function apply(ctx: Context, cfg: Config) {
     return cfg.addStatusTextAfterEmoji ? `(${label})` : "";
   }
 
+  /** 已猜词条可能很长：只列最近六个，其余折成一句「等 N 个」。 */
+  function guessList(titles: string[]): string {
+    const recent = titles.slice(-6);
+    const rest = titles.length - recent.length;
+    return recent.join(" › ") + (rest > 0 ? ` …… 另有 ${rest} 个未列` : "");
+  }
+
   /**
    * 文本形态下仍然把词条的 Wiki 配图带上。
    * 这条路径只在没有 puppeteer 时走到，图片由平台自己去抓，
@@ -455,7 +462,7 @@ export function apply(ctx: Context, cfg: Config) {
     });
 
     const locked = fields.filter((k) => statusOf(last, k) === "true").length;
-    const history = titles.length > 1 ? `本局已猜：${titles.join(" › ")}` : null;
+    const history = titles.length > 1 ? `本局已猜：${guessList(titles)}` : null;
 
     return textCard(
       `${modeName(mode)}模式 · 第 ${guesses.length} 次猜测`,
@@ -511,7 +518,9 @@ export function apply(ctx: Context, cfg: Config) {
         `${o.username} 累计猜中 ${o.total} 次`,
       ],
       `答案档案：${profile}`,
-      left > 0 ? `今日还剩 ${left} 局 · mcdle.排行榜 查看战绩` : "今日额度已用完 · mcdle.排行榜 查看战绩",
+      left > 0
+        ? `今日还剩 ${left} 局 · 发送「mcdle.排行榜」看战绩`
+        : "今日额度已用完 · 发送「mcdle.排行榜」看战绩",
     );
   }
 
@@ -578,7 +587,7 @@ export function apply(ctx: Context, cfg: Config) {
       : "续猜请发送「mcdle.猜 [名称]」";
     return [
       `${mark} 裸猜续局 · 本频道临时${state}（插件配置：${config}）`,
-      `${hint}；再次发送 mcdle.裸猜 可复原`,
+      `${hint}；再次发送「mcdle.裸猜」可复原`,
     ].join("\n");
   }
 
@@ -844,7 +853,7 @@ export function apply(ctx: Context, cfg: Config) {
         textCard(
           "💡 本频道没有进行中的对局",
           "发送完整指令开局，例如「mcdle.猜 苦力怕」。",
-          "名称必须来自 mcdle.词库。",
+          "名称必须来自「mcdle.词库」。",
         ),
       );
       return;
@@ -872,7 +881,7 @@ export function apply(ctx: Context, cfg: Config) {
         textCard(
           `⏳ 今日 ${cfg.dailyPlayLimit} 局已经用完`,
           `跨零点后重置，还要等 ${untilReset(now)}。`,
-          "在那之前可以看看 mcdle.排行榜 或 mcdle.词库。",
+          "在那之前可以发送「mcdle.排行榜」或「mcdle.词库」看看。",
         ),
       );
       return;
@@ -943,7 +952,7 @@ export function apply(ctx: Context, cfg: Config) {
       if (state.guesses.length) {
         await sendCard(
           session,
-          boardCard({ mode, guesses: state.guesses, tip: "轮到你了 · mcdle.猜 [名称]" }),
+          boardCard({ mode, guesses: state.guesses, tip: "轮到你了 · 发送「mcdle.猜 [名称]」" }),
           boardText(mode, state.guesses, state.titles),
         );
       } else {
@@ -951,7 +960,7 @@ export function apply(ctx: Context, cfg: Config) {
           session,
           textCard(
             `轮到你了 · ${modeName(mode)}模式`,
-            `报一个${modeName(mode)}的名字，比如 mcdle.猜 ${POOLS[mode][0].chinese_title}。`,
+            `报一个${modeName(mode)}的名字，比如发送「mcdle.猜 ${POOLS[mode][0].chinese_title}」。`,
             `拿不准有哪些词条，发送「mcdle.词库」翻一翻。`,
           ),
         );
@@ -964,7 +973,7 @@ export function apply(ctx: Context, cfg: Config) {
         session,
         textCard(
           `⚠️ 「${guess}」这一局已经猜过了`,
-          `本局已猜 ${state.titles.length} 个：${state.titles.join(" › ")}`,
+          `本局已猜 ${state.titles.length} 个：${guessList(state.titles)}`,
           "换一个还没试过的词条吧。",
         ),
       );
@@ -982,7 +991,7 @@ export function apply(ctx: Context, cfg: Config) {
         textCard(
           `⚠️ 「${guess}」不在${modeName(mode)}词库里`,
           near.length ? `是不是想猜：${near.join("、")}？` : null,
-          `本局共有 ${MODES[mode].total} 个${modeName(mode)}候选，mcdle.词库 可以全部翻看。`,
+          `本局共有 ${MODES[mode].total} 个${modeName(mode)}候选，发送「mcdle.词库」可以全部翻看。`,
         ),
       );
       return;
@@ -1058,7 +1067,11 @@ export function apply(ctx: Context, cfg: Config) {
     );
     return textCard(
       "MCDLE · 我的世界猜谜",
-      `从 ${total} 个词条里，只凭属性提示锁定唯一答案。每局随机抽一个生物、物品或方块，首次猜测的词条属于哪一类，本局就在哪一类里出题。`,
+      [
+        `从 ${total} 个词条里，只凭属性提示锁定唯一答案。`,
+        "每局随机抽一个生物、物品或方块。",
+        "首次猜测的词条属于哪一类，本局就在哪一类里出题。",
+      ],
       legend,
       [
         "部分匹配的字段里，【】括起来的就是与答案重合的那几项。",
@@ -1079,9 +1092,9 @@ export function apply(ctx: Context, cfg: Config) {
       [
         "mcdle　这份玩法与指令说明",
         "mcdle.猜 [名称]　开始一局，或提交猜测",
-        "mcdle.猜　局中直接使用可回看当前棋盘",
+        "mcdle.猜　局中再次发送可回看当前棋盘",
         "mcdle.裸猜 [开/关]　临时切换本频道的无前缀续猜",
-        "mcdle.排行榜　查看群内战绩",
+        "mcdle.排行榜　查看累计战绩",
         "mcdle.词库　查阅全部候选词条",
       ],
       [
@@ -1119,7 +1132,11 @@ export function apply(ctx: Context, cfg: Config) {
       await sendCard(
         session,
         rankCard([], 0),
-        textCard("📋 排行榜还空着", "第一个猜中的人，名字会写在这里。发送「mcdle.猜 苦力怕」开一局。"),
+        textCard(
+          "📋 排行榜还空着",
+          "第一个猜中的人，名字会写在这里。",
+          "发送「mcdle.猜 苦力怕」开一局。",
+        ),
       );
       return;
     }
