@@ -1,13 +1,16 @@
 {
   "name": "koishi-plugin-mcdle",
   "description": "Koishi《我的世界》猜谜：覆盖生物、物品和方块，支持群内记录与排行。",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
     "lib",
     "LICENSE-APACHE",
-    "LICENSE-MIT"
+    "LICENSE-MIT",
+    "DESIGN_SYSTEM.md",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "koishi": {
     "service": {
@@ -63,6 +66,7 @@
     "tsx": "^4.23.13"
   },
   "scripts": {
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "check:design": "node scripts/check-design-system.mjs"
   }
 }

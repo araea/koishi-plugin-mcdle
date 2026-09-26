@@ -1,3 +1,5 @@
+import { registerDirectInput, directInputConflict } from './ux'
+import { usePresentation } from './ux'
 import { Context, h, Schema, Session } from 'koishi'
 import {} from 'koishi-plugin-puppeteer'
 import { mobData, blockData, itemData, MobData, BlockData, ItemData, keyMap, blockChineseTitle, mobChineseTitle, itemChineseTitle } from './data';
@@ -279,6 +281,7 @@ export function resolveMiddlewareSwitch(
 }
 
 export function apply(ctx: Context, cfg: Config) {
+  const presentation = usePresentation(ctx, 'mcdle')
   //tzb*
   // 游戏记录表定义
   ctx.model.extend(
@@ -328,6 +331,16 @@ export function apply(ctx: Context, cfg: Config) {
       : middlewareOverrides.get(channelId) ?? cfg.enableDirectInput;
 
   //zjj* 常驻注册，才能让 mcdle.裸猜 即时切换；所有消息先过纯文本与局面双重闸门。
+  registerDirectInput(ctx, 'mcdle', async (session) => {
+    if (!ctx.filter(session)) return false;
+    if (!session.channelId || !middlewareOn(session.channelId)) return false;
+    const guess = getMiddlewareGuess(session);
+    if (!guess) return false;
+    const [game] = await ctx.database.get('mcdle', { channelId: session.channelId });
+    if (!canHandleMiddlewareGuess(game, guess, cfg.allowRepeatedGuesses)) return false;
+    return true
+  });
+
   ctx.middleware(async (session, next) => {
     if (!session.channelId || !middlewareOn(session.channelId)) return await next();
 
@@ -338,6 +351,7 @@ export function apply(ctx: Context, cfg: Config) {
       const [game] = await ctx.database.get("mcdle", { channelId: session.channelId });
       if (!canHandleMiddlewareGuess(game, guess, cfg.allowRepeatedGuesses)) return await next();
 
+    if (await directInputConflict(ctx, session)) return;
       // c() 在这里仍会重读最新局面，并明确禁止开局，堵住并发结束时的误开新局。
       const handled = await c(session, guess, false);
       return handled ? undefined : await next();
@@ -462,7 +476,10 @@ export function apply(ctx: Context, cfg: Config) {
     });
 
     const locked = fields.filter((k) => statusOf(last, k) === "true").length;
-    const history = titles.length > 1 ? `本局已猜：${guessList(titles)}` : null;
+    const history = guesses.slice(0, -1).map((guess, index) => [
+      `第 ${index + 1} 次：${guess.chinese_title ?? titles[index]}`,
+      ...fields.map(key => `${STATUS_META[statusOf(guess, key)].label} ${fieldLabel(key)}：${displayValues(key, guess[key]).map(v => v.text).join('、')}`),
+    ].join('\n')).join('\n\n');
 
     return textCard(
       `${modeName(mode)}模式 · 第 ${guesses.length} 次猜测`,
@@ -559,8 +576,8 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   async function sendCard(session: Session, html: string, fallback: string) {
-    const image = await renderCard(html);
-    await sendMsg(session, image ?? fallback);
+    const image = presentation.textOnly(session) ? null : await renderCard(html);
+    await sendMsg(session, h.normalize(presentation.present(session, image, fallback)).join(''));
   }
 
   // zlhs*
@@ -1290,7 +1307,7 @@ export function apply(ctx: Context, cfg: Config) {
     }
     const [messageId] = await session.send(msg);
 
-    if (cfg.retractDelay > 0 && messageId) {
+    if (!presentation.textOnly(session) && cfg.retractDelay > 0 && messageId) {
       const prevMessage = lastMessageInfo.get(session.channelId);
 
       if (prevMessage) {
