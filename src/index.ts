@@ -1,5 +1,5 @@
 import { registerDirectInput, directInputConflict } from './ux'
-import { usePresentation } from './ux'
+import { present } from './ux'
 import { Context, h, Schema, Session } from 'koishi'
 import {} from 'koishi-plugin-puppeteer'
 import { mobData, blockData, itemData, MobData, BlockData, ItemData, keyMap, blockChineseTitle, mobChineseTitle, itemChineseTitle } from './data';
@@ -281,7 +281,6 @@ export function resolveMiddlewareSwitch(
 }
 
 export function apply(ctx: Context, cfg: Config) {
-  const presentation = usePresentation(ctx, 'mcdle')
   //tzb*
   // 游戏记录表定义
   ctx.model.extend(
@@ -576,8 +575,8 @@ export function apply(ctx: Context, cfg: Config) {
   }
 
   async function sendCard(session: Session, html: string, fallback: string) {
-    const image = presentation.textOnly(session) ? null : await renderCard(html);
-    await sendMsg(session, h.normalize(presentation.present(session, image, fallback)).join(''));
+    const image = await renderCard(html);
+    await sendMsg(session, h.normalize(present(image, fallback)).join(''));
   }
 
   // zlhs*
@@ -1307,7 +1306,7 @@ export function apply(ctx: Context, cfg: Config) {
     }
     const [messageId] = await session.send(msg);
 
-    if (!presentation.textOnly(session) && cfg.retractDelay > 0 && messageId) {
+    if (cfg.retractDelay > 0 && messageId) {
       const prevMessage = lastMessageInfo.get(session.channelId);
 
       if (prevMessage) {
