@@ -879,8 +879,9 @@ function legendRow(tip: string): string {
 }
 
 /** 其余卡片的页脚：只留一句落款，避免图例到处重复。 */
+/** 只有一句话的页脚：没有图例与它并排，居中才不显得偏在一边。 */
 function noteRow(note: string): string {
-  return `<footer class="legend"><div class="tip" style="margin:0">${esc(note)}</div></footer>`
+  return `<footer class="legend" style="justify-content:center"><div class="tip" style="margin:0;text-align:center">${esc(note)}</div></footer>`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -924,10 +925,29 @@ export function boardCard(opts: BoardOptions): string {
   const fields = FIELDS[mode]
   const last = guesses[guesses.length - 1]
 
-  const cards = guesses.map((g, i) => `<article class="guess-card">
-    <h2 class="m3-title-large">${i + 1}. ${esc(g.chinese_title)} <span class="m3-body-medium">${esc(g.title || '')}</span></h2>
-    <div class="guess-fields">${fields.map(key => `<table><thead><tr><th>${esc(fieldLabel(key))}</th></tr></thead><tbody><tr>${tileCell(g, key)}</tr></tbody></table>`).join('')}</div>
-  </article>`).join('')
+  const head =
+    `<tr><th class="n"><div class="col"><span class="lb">${guesses.length} 次猜测</span></div></th>` +
+    fields
+      .map(
+        (k) =>
+          `<th${isListField(k, last) ? ' class="list"' : ''}><div class="col">${px(fieldIcon(k), 15)}` +
+          `<span class="lb">${esc(fieldLabel(k))}</span></div></th>`,
+      )
+      .join('') +
+    '</tr>'
+
+  const rows = guesses
+    .map((g, i) => {
+      const fresh = i === guesses.length - 1 ? ' class="fresh"' : ''
+      const solved = fields.every((k) => statusOf(g, k) === 'true') && g.chinese_title_gui === 'true'
+      const name =
+        `<td><div class="name${solved ? ' correct' : ''}">${thumb(g.wiki_image_url, mode)}` +
+        `<div class="txt"><div class="cn">${esc(g.chinese_title)}${solved ? ' ' + px('crown', 13) : ''}</div>` +
+        `<div class="en">${esc(g.title || '')}</div>` +
+        `<div class="no">#${String(i + 1).padStart(2, '0')}</div></div></div></td>`
+      return `<tr${fresh}>${name}${fields.map((k) => tileCell(g, k)).join('')}</tr>`
+    })
+    .join('')
 
   const locked = fields.filter((k) => statusOf(last, k) === 'true').length
   const pct = Math.round((locked / fields.length) * 100)
@@ -940,7 +960,7 @@ export function boardCard(opts: BoardOptions): string {
       big: `#${guesses.length}`,
       cap: '猜测次数',
     }) +
-    `<style>.board-compact{width:640px;max-width:100%}.guess-card{padding:16px;border-radius:24px;background:var(--md-sys-color-surface-container-low);margin-bottom:16px}.guess-card h2{overflow-wrap:anywhere}.guess-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.guess-fields table{width:100%;table-layout:fixed}.guess-fields .tile{width:100%;max-width:none;min-width:0}.guess-fields td,.guess-fields th{white-space:normal;overflow-wrap:anywhere}</style><div class="pad board-compact">${cards}${prog}</div>` +
+    `<div class="pad"><table>${head}${rows}</table>${prog}</div>` +
     legendRow(opts.tip || '箭头指向答案所在的方向')
 
   return shell(body, { accent: meta.accent })
