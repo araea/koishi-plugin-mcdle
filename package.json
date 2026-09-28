@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-mcdle",
-  "description": "在 Koishi 群里玩《我的世界》猜谜，凭属性提示从生物、物品、方块中锁定唯一答案",
+  "description": "Koishi 插件：玩《我的世界》猜谜，凭属性提示从生物、物品、方块中锁定唯一答案。",
   "version": "0.7.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

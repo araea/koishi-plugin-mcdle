@@ -1,6 +1,6 @@
 # 我的世界猜谜
 
-在 Koishi 群里玩《我的世界》猜谜，凭属性提示从生物、物品、方块中锁定唯一答案
+Koishi 插件：玩《我的世界》猜谜，凭属性提示从生物、物品、方块中锁定唯一答案
 
 [![GitHub](https://img.shields.io/badge/GitHub-仓库-blue)](https://github.com/araea/koishi-plugin-mcdle) [![npm](https://img.shields.io/badge/npm-包-red)](https://www.npmjs.com/package/koishi-plugin-mcdle)
 
