@@ -1,6 +1,13 @@
 import { blockData, itemData, keyMap, mobData, valueMap } from './data'
 import { baseline, components, EMPHASIZED_WEIGHT, FONT_STACK, lch, MEDAL, MONO_STACK, scheme, TYPE } from './m3'
 
+/**
+ * 小字号的实际取值：比 M3 手机基准（11 / 12 / 14px）各放大一档，最小 13px。
+ * 卡片 560 ~ 800px 宽，聊天里会被缩到一半左右再看，列头、模式名、图例这些
+ * 读数恰恰都是小字号，按 11px 排缩出来只剩 5 个点。m3.ts 是同步件，所以改在这里。
+ */
+const TS = { labelSmall: 13, bodySmall: 14, labelMedium: 14, bodyMedium: 15, labelLarge: 15, titleSmall: 16 } as const
+
 /** 草绿。三种模式各有强调色，但都从同一套色调板上取，明度是齐的。 */
 const HUE = 138
 const SCHEME = scheme(HUE, true)
@@ -611,10 +618,10 @@ html,body{background:transparent}
 .brand .mark{color:var(--accent)}
 .brand .word{font-size:${TYPE.headlineMedium.size}px;font-weight:${EMPHASIZED_WEIGHT.headline};letter-spacing:.18em;line-height:1}
 .brand .word b{color:var(--accent);font-weight:${EMPHASIZED_WEIGHT.headline}}
-.hd .sub{margin-top:8px;font-size:${TYPE.bodySmall.size}px;letter-spacing:.05em;color:var(--md-sys-color-on-surface-variant)}
+.hd .sub{margin-top:8px;font-size:${TS.bodySmall}px;letter-spacing:.05em;color:var(--md-sys-color-on-surface-variant)}
 .hd-meta{text-align:right;flex:none}
 .hd-meta .big{font-family:${NUM_FONT};font-size:${TYPE.headlineMedium.size}px;font-weight:${EMPHASIZED_WEIGHT.headline};color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
-.hd-meta .cap{font-size:${TYPE.labelSmall.size}px;letter-spacing:.1em;color:var(--md-sys-color-on-surface-variant);margin-top:6px}
+.hd-meta .cap{font-size:${TS.labelSmall}px;letter-spacing:.1em;color:var(--md-sys-color-on-surface-variant);margin-top:6px}
 
 /* 模式徽记：药丸形。底色是每模式各自的 accent（同一套色调板上的色调 80），
    不是主题容器色，m3-chip 没有对应档位 */
@@ -622,7 +629,7 @@ html,body{background:transparent}
   display:inline-flex;align-items:center;gap:7px;padding:6px 14px;
   border-radius:var(--md-sys-shape-corner-full);
   background:var(--accent);color:var(--md-sys-color-surface);
-  font-size:${TYPE.labelMedium.size}px;letter-spacing:.06em;font-weight:${EMPHASIZED_WEIGHT.label};
+  font-size:${TS.labelMedium}px;letter-spacing:.06em;font-weight:${EMPHASIZED_WEIGHT.label};
 }
 
 /* ── 猜测板 ───────────────────────────────────────── */
@@ -630,7 +637,7 @@ table{border-collapse:separate;border-spacing:6px;margin:0 -6px}
 th{padding:0 0 8px;vertical-align:bottom}
 .col{display:flex;flex-direction:column;align-items:center;gap:6px;
   min-width:80px;max-width:132px;color:var(--md-sys-color-on-surface-variant)}
-.col .lb{font-size:${TYPE.labelSmall.size}px;letter-spacing:.04em;color:var(--md-sys-color-on-surface-variant);
+.col .lb{font-size:${TS.labelSmall}px;letter-spacing:.04em;color:var(--md-sys-color-on-surface-variant);
   text-align:center;line-height:1.25;font-weight:${EMPHASIZED_WEIGHT.label}}
 th.n .col{align-items:flex-start;min-width:150px}
 
@@ -646,11 +653,11 @@ td{padding:0}
 /* 多标签字段给更宽的上限，否则一列里会折成很高的一坨 */
 .tile.list{max-width:168px}
 th.list .col{max-width:168px}
-.tile .v{font-size:${TYPE.titleSmall.size}px;font-weight:${EMPHASIZED_WEIGHT.title};line-height:1.35;text-align:center;
+.tile .v{font-size:${TS.titleSmall}px;font-weight:${EMPHASIZED_WEIGHT.title};line-height:1.35;text-align:center;
   color:${INK};word-break:break-word}
 .tile .chips{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
 .chip{
-  font-size:${TYPE.labelSmall.size}px;line-height:1.35;padding:2px 8px;
+  font-size:${TS.labelSmall}px;line-height:1.35;padding:2px 8px;
   border-radius:var(--md-sys-shape-corner-full);
   color:${INK};background:color-mix(in srgb, var(--md-sys-color-scrim) 24%, transparent);
 }
@@ -689,11 +696,11 @@ th.list .col{max-width:168px}
 .thumb.failed .fb{display:block}
 .name .txt{min-width:0}
 .name .cn{font-size:${TYPE.titleMedium.size}px;font-weight:${EMPHASIZED_WEIGHT.title};line-height:1.25}
-.name .en{font-size:${TYPE.labelSmall.size}px;letter-spacing:.04em;color:var(--md-sys-color-on-surface-variant);margin-top:3px;
+.name .en{font-size:${TS.labelSmall}px;letter-spacing:.04em;color:var(--md-sys-color-on-surface-variant);margin-top:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
 .name.correct .cn,.name.correct .en,.name.correct .no{color:${INK}}
 .name.correct .en,.name.correct .no{opacity:.78}
-.name .no{font-family:${NUM_FONT};font-size:${TYPE.labelSmall.size}px;color:var(--md-sys-color-on-surface-variant);margin-top:3px}
+.name .no{font-family:${NUM_FONT};font-size:${TS.labelSmall}px;color:var(--md-sys-color-on-surface-variant);margin-top:3px}
 
 /* 最新一行的强调：外圈一圈 2px 描边 + 行首的圆头标记。
    这是高亮环不是层高，所以用 outline 而不是 box-shadow */
@@ -712,7 +719,7 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
   background:var(--md-sys-color-surface-container-highest);
 }
 .prog .fill{height:100%;border-radius:var(--md-sys-shape-corner-full);background:var(--accent)}
-.prog .num{font-family:${NUM_FONT};font-size:${TYPE.labelMedium.size}px;color:var(--md-sys-color-on-surface-variant);letter-spacing:.04em;flex:none;
+.prog .num{font-family:${NUM_FONT};font-size:${TS.labelMedium}px;color:var(--md-sys-color-on-surface-variant);letter-spacing:.04em;flex:none;
   font-variant-numeric:tabular-nums}
 
 /* ── 图例 / 页脚 ──────────────────────────────────── */
@@ -724,15 +731,15 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
 .lg{
   display:flex;align-items:center;gap:6px;padding:5px 12px;
   border-radius:var(--md-sys-shape-corner-full);
-  font-size:${TYPE.labelSmall.size}px;color:${INK};background:var(--tile);
+  font-size:${TS.labelSmall}px;color:${INK};background:var(--tile);
 }
 .lg.s-none{color:var(--md-sys-color-on-surface-variant)}
-.tip{margin-left:auto;font-size:${TYPE.labelSmall.size}px;color:var(--md-sys-color-on-surface-variant);letter-spacing:.02em}
+.tip{margin-left:auto;font-size:${TS.labelSmall}px;color:var(--md-sys-color-on-surface-variant);letter-spacing:.02em}
 
 /* ── 通用区块 ─────────────────────────────────────── */
 .sec{margin-top:22px}
 .sec:first-child{margin-top:0}
-.sec-t{display:flex;align-items:center;gap:10px;font-size:${TYPE.labelMedium.size}px;letter-spacing:.1em;
+.sec-t{display:flex;align-items:center;gap:10px;font-size:${TS.labelMedium}px;letter-spacing:.1em;
   font-weight:${EMPHASIZED_WEIGHT.label};color:var(--md-sys-color-on-surface-variant);margin-bottom:12px}
 .sec-t::after{content:"";flex:1;height:1px;background:var(--md-sys-color-outline-variant)}
 .panel{
@@ -741,10 +748,10 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
   background:var(--md-sys-color-surface-container);
 }
 .rows{display:flex;flex-direction:column;gap:9px}
-.row{display:flex;align-items:center;gap:10px;font-size:${TYPE.bodyMedium.size}px;
+.row{display:flex;align-items:center;gap:10px;font-size:${TS.bodyMedium}px;
   color:var(--md-sys-color-on-surface);line-height:1.5}
 .row .k{color:var(--accent);flex:none;font-weight:${EMPHASIZED_WEIGHT.label}}
-.row .m{color:var(--md-sys-color-on-surface-variant);font-size:${TYPE.bodySmall.size}px}
+.row .m{color:var(--md-sys-color-on-surface-variant);font-size:${TS.bodySmall}px}
 .cmd{
   font-weight:${EMPHASIZED_WEIGHT.label};color:var(--md-sys-color-on-surface);
   background:var(--md-sys-color-surface-container-highest);
@@ -758,8 +765,8 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
   background:var(--md-sys-color-surface-container);
 }
 .mode-card .top{display:flex;align-items:center;gap:9px;font-size:${TYPE.titleMedium.size}px;font-weight:${EMPHASIZED_WEIGHT.title}}
-.mode-card .cnt{font-size:${TYPE.labelSmall.size}px;color:var(--md-sys-color-on-surface-variant);margin-top:8px;letter-spacing:.04em}
-.mode-card .tl{font-size:${TYPE.labelSmall.size}px;color:var(--md-sys-color-on-surface-variant);margin-top:6px;line-height:1.5}
+.mode-card .cnt{font-size:${TS.labelSmall}px;color:var(--md-sys-color-on-surface-variant);margin-top:8px;letter-spacing:.04em}
+.mode-card .tl{font-size:${TS.labelSmall}px;color:var(--md-sys-color-on-surface-variant);margin-top:6px;line-height:1.5}
 
 .attrs{display:flex;flex-wrap:wrap;gap:8px}
 /* 配色与 m3-chip 的默认档（secondary-container）一致，但尺寸更小：
@@ -767,7 +774,7 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
 .attr{
   display:flex;align-items:center;gap:7px;padding:7px 14px;
   border-radius:var(--md-sys-shape-corner-full);
-  font-size:${TYPE.labelMedium.size}px;color:var(--md-sys-color-on-secondary-container);
+  font-size:${TS.labelMedium}px;color:var(--md-sys-color-on-secondary-container);
   background:var(--md-sys-color-secondary-container);
 }
 .attr .px{color:var(--accent)}
@@ -788,7 +795,7 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
 .reveal .big-thumb .fb{display:none;color:var(--md-sys-color-on-surface-variant)}
 .reveal .big-thumb.failed .fb{display:block}
 .reveal .cn{font-size:${TYPE.displaySmall.size}px;font-weight:${EMPHASIZED_WEIGHT.display};line-height:1.1}
-.reveal .en{font-size:${TYPE.bodySmall.size}px;letter-spacing:.1em;color:var(--md-sys-color-on-surface-variant);margin-top:10px}
+.reveal .en{font-size:${TS.bodySmall}px;letter-spacing:.1em;color:var(--md-sys-color-on-surface-variant);margin-top:10px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .stat{
   padding:13px 16px;
@@ -796,7 +803,7 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
   background:var(--md-sys-color-surface-container);
 }
 .stat .n{font-family:${NUM_FONT};font-size:${TYPE.titleLarge.size}px;font-weight:${EMPHASIZED_WEIGHT.title};color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
-.stat .c{font-size:${TYPE.labelSmall.size}px;color:var(--md-sys-color-on-surface-variant);margin-top:7px;letter-spacing:.06em}
+.stat .c{font-size:${TS.labelSmall}px;color:var(--md-sys-color-on-surface-variant);margin-top:7px;letter-spacing:.06em}
 
 /* ── 排行榜 ───────────────────────────────────────── */
 /* 列用 m3-list、行用 m3-list-item：圆角（首尾项放大到 extraLarge）、容器色与
@@ -809,16 +816,16 @@ tr.fresh .name::before{content:"";position:absolute;left:0;top:14px;bottom:14px;
 }
 .rk.p1{outline:2px solid ${MEDAL.gold}}
 .rk .who{flex:1;min-width:0}
-.rk .nm{font-size:${TYPE.titleSmall.size}px;font-weight:${EMPHASIZED_WEIGHT.title};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+.rk .nm{font-size:${TS.titleSmall}px;font-weight:${EMPHASIZED_WEIGHT.title};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:260px}
 .rk .split{display:flex;gap:10px;margin-top:6px}
-.rk .sp{display:flex;align-items:center;gap:4px;font-size:${TYPE.labelSmall.size}px;font-family:${NUM_FONT};color:var(--md-sys-color-on-surface-variant)}
+.rk .sp{display:flex;align-items:center;gap:4px;font-size:${TS.labelSmall}px;font-family:${NUM_FONT};color:var(--md-sys-color-on-surface-variant)}
 .rk .tot{flex:none;text-align:right}
 .rk .tot .n{font-family:${NUM_FONT};font-size:${TYPE.titleLarge.size}px;font-weight:${EMPHASIZED_WEIGHT.title};color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
-.rk .tot .c{font-size:${TYPE.labelSmall.size}px;color:var(--md-sys-color-on-surface-variant);margin-top:5px;letter-spacing:.06em}
+.rk .tot .c{font-size:${TS.labelSmall}px;color:var(--md-sys-color-on-surface-variant);margin-top:5px;letter-spacing:.06em}
 
 .empty{padding:36px 20px;min-width:400px;text-align:center;
-  color:var(--md-sys-color-on-surface-variant);font-size:${TYPE.bodyMedium.size}px;line-height:2}
+  color:var(--md-sys-color-on-surface-variant);font-size:${TS.bodyMedium}px;line-height:2}
 .empty .px{margin:0 auto 14px;color:var(--md-sys-color-on-surface-variant)}
 `
 
@@ -1156,7 +1163,7 @@ export function rankCard(entries: RankEntry[], shown: number): string {
     const body =
       header(null, '排行榜', { big: '0', cap: '上榜人数' }) +
       `<div class="pad"><div class="empty">${px('trophy', 44)}
-        排行榜还空着<br>第一个猜中的人，名字会写在这里。<br><span style="font-size:${TYPE.bodySmall.size}px">用 <span class="cmd">mcdle.猜 苦力怕</span> 开出第一局，成为榜首</span></div></div>`
+        排行榜还空着<br>第一个猜中的人，名字会写在这里。<br><span style="font-size:${TS.bodySmall}px">用 <span class="cmd">mcdle.猜 苦力怕</span> 开出第一局，成为榜首</span></div></div>`
     return shell(body, { accent: accentOf(90), width: 560 })
   }
 
